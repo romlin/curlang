@@ -1,32 +1,26 @@
 [
   {
-    "id": "part-SEHlVc23Rc",
+    "id": "part-8iCbHVUyY0",
     "type": "markdown",
     "disabled": false,
     "code": "# dataset\nBuilt with Curlang"
   },
   {
-    "id": "part-g1eizcw9xX",
+    "id": "part-4fC3XB7kUb",
     "type": "curlang",
     "disabled": false,
-    "code": "# Download DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf\n!find \"DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf\" {\n    get \"https://huggingface.co/unsloth/DeepSeek-R1-Distill-Qwen-7B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf\" as \"DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n} else \"DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf already exists.\""
+    "code": "# Download gemma-2-9b-it-Q4_K_M.gguf\n!find \"gemma-2-9b-it-Q4_K_M.gguf\" {\n    get \"https://huggingface.co/lmstudio-community/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-Q4_K_M.gguf\" as \"gemma-2-9b-it-Q4_K_M.gguf\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n} else \"gemma-2-9b-it-Q4_K_M.gguf already exists.\""
   },
   {
-    "id": "part-Cw6JZzrfV1",
+    "id": "part-VCDPMCap6M",
     "type": "curlang",
     "disabled": false,
-    "code": "# Check whether DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf exists\nfind \"DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf\" {\n    print \"DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf exists.\"\n} else \"DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf is missing.\""
+    "code": "use json, requests\nuse Llama:llama_cpp"
   },
   {
-    "id": "part-J5a3F6MgTr",
-    "type": "curlang",
+    "id": "part-RbDNGEbq0E",
+    "type": "python",
     "disabled": false,
-    "code": "use Llama:llama_cpp"
-  },
-  {
-    "id": "part-FLgmHXYOzp",
-    "type": "curlang",
-    "disabled": false,
-    "code": "python {\n    llm = Llama(\n        model_path=\"DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf\",\n        verbose=False\n    )\n\n    output = llm(\n        f\"<｜User｜>What is 1+1?<｜Assistant｜>\",\n        max_tokens=256,\n        seed=-1,\n        temperature=0.7\n    )[\"choices\"][0][\"text\"].strip()\n\n    with open(\"output/output.txt\", \"w\") as f:\n        f.write(output)\n\n    print(output)\n}"
+    "code": "url = \"https://huggingface.co/datasets/databricks/databricks-dolly-15k/resolve/main/databricks-dolly-15k.jsonl\"\ninput_filename = \"databricks-dolly-15k.jsonl\"\n\nresponse = requests.get(url)\n\nif response.status_code == 200:\n    with open(input_filename, \"wb\") as f:\n        f.write(response.content)\n    print(f\"Downloaded dataset to {input_filename}\")\nelse:\n    raise Exception(f\"Failed to download file: HTTP {response.status_code}\")\n\nllm = Llama(\n    model_path=\"gemma-2-9b-it-Q4_K_M.gguf\",\n    n_ctx=8192,\n    verbose=False\n)\n\ndef translate_text(text, language=\"Swedish\"):\n    \"\"\"\n    Translate the provided text to the target language using Gemma.\n    \"\"\"\n    prompt_template = (\n        \"<start_of_turn>user\\n\"\n        f\"Translate to {language}: \\\"{text}\\\"\\n\"\n        \"Only return the translation.\\n\"\n        \"<end_of_turn>\\n\"\n        \"<start_of_turn>model\"\n    )\n    \n    result = llm(\n        prompt_template,\n        max_tokens=512,\n        seed=-1,\n        temperature=0.1\n    )\n    \n    translation = result[\"choices\"][0][\"text\"].strip()\n    return translation\n\noutput_filename = \"databricks-dolly-15k-swedish.jsonl\"\ntext_keys = {\"instruction\", \"context\", \"response\"}\n\nwith open(input_filename, \"r\", encoding=\"utf-8\") as infile, \\\n     open(output_filename, \"w\", encoding=\"utf-8\") as outfile:\n    \n    for line in infile:\n        record = json.loads(line)\n        \n        for key in text_keys:\n            if (key in record and isinstance(record[key], str) and record[key].strip()):\n                try:\n                    original_text = record[key]\n                    translated_text = translate_text(original_text, language=\"Swedish\")\n                    record[key] = translated_text\n                    print(f\"Translated key '{key}'.\")\n                except Exception as e:\n                    print(f\"Error translating key '{key}': {e}\")\n                    record[key] = original_text\n        \n        outfile.write(json.dumps(record, ensure_ascii=False) + \"\\n\")\n        outfile.flush()\n\nprint(f\"Translated dataset saved to {output_filename}\")"
   }
 ]
