@@ -8,7 +8,7 @@
   {
     "id": "part-No6Fr5Vi4O",
     "type": "python",
-    "disabled": true,
+    "disabled": false,
     "code": "import torch\n\nfrom transformers import AutoModelForCausalLM, AutoTokenizer\n\ndevice = \"cuda\" if torch.cuda.is_available() else \"mps\" if torch.backends.mps.is_available() else \"cpu\"\n\nmodel_path = \"./fine-tuned-model\"\ntokenizer = AutoTokenizer.from_pretrained(model_path)\nmodel = AutoModelForCausalLM.from_pretrained(model_path).to(device)\n\nif tokenizer.pad_token is None:\n    tokenizer.pad_token = tokenizer.eos_token\n\nprompt = \"Can you tell me about Paris?\"\ninputs = tokenizer(prompt, return_tensors=\"pt\").to(device)\n\noutput = model.generate(\n    **inputs,\n    do_sample=True,\n    max_new_tokens=100,\n    pad_token_id=tokenizer.eos_token_id,\n    temperature=0.7,\n)\n\nresponse = tokenizer.decode(output[0], skip_special_tokens=True)\n\nif response.startswith(prompt):\n    response = response[len(prompt):].strip()\n\nprint(\"Prompt:\", prompt)\nprint(\"Response:\", response)"
   }
 ]
