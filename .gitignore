@@ -1,0 +1,17 @@
+.DS_Store
+
+.idea/
+
+*.gguf
+
+__pycache__/
+
+/package/curlang/build
+/package/curlang/dist
+/package/curlang/venv
+/package/curlang/curlang.egg-info
+/package/curlang/curlang.sh
+/package/curlang/metadata.json
+/package/curlang/vector.index
+
+/test/test

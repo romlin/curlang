@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Icons</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        button, select {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 0 5px;
+        }
+
+        #backgroundGrid, #drawingGrid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: grid;
+            grid-gap: 1px;
+        }
+
+        #colorPicker {
+            width: 50px;
+            height: 50px;
+            padding: 0;
+            border: none;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        #controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        #gridContainer {
+            position: relative;
+            width: 340px;
+            height: 340px;
+        }
+
+        .active {
+            background-color: #e0e0e0;
+        }
+
+        .bg-cell {
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+        }
+
+        .crosshair-line {
+            background-color: #f0f0f0;
+        }
+
+        .draw-cell {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<h1>Pixel Icons</h1>
+<div id="controls">
+    <input type="color" id="colorPicker" value="#000000">
+    <button id="drawMode" class="active">Draw</button>
+    <button id="eraseMode">Erase</button>
+    <select id="gridSize">
+        <option value="16" selected>16x16</option>
+    </select>
+    <select id="brushSize">
+        <option value="1">1x1</option>
+        <option value="2">2x2</option>
+        <option value="4">4x4</option>
+        <option value="8">8x8</option>
+    </select>
+    <button id="export">Export as SVG</button>
+    <button id="copy">Copy SVG Code</button>
+    <button id="clear">Clear Canvas</button>
+</div>
+<div id="gridContainer">
+    <div id="backgroundGrid"></div>
+    <div id="drawingGrid"></div>
+</div>
+<script>
+    const backgroundGrid = document.getElementById('backgroundGrid');
+    const drawingGrid = document.getElementById('drawingGrid');
+    const exportButton = document.getElementById('export');
+    const copyButton = document.getElementById('copy');
+    const clearButton = document.getElementById('clear');
+    const colorPicker = document.getElementById('colorPicker');
+    const gridSizeSelect = document.getElementById('gridSize');
+    const brushSizeSelect = document.getElementById('brushSize');
+    const drawModeButton = document.getElementById('drawMode');
+    const eraseModeButton = document.getElementById('eraseMode');
+    const gridContainer = document.getElementById('gridContainer');
+
+    let currentGridSize = 16;
+    let currentBrushSize = 1;
+    let isDrawing = false;
+    let isErasing = false;
+
+    const createBackgroundCell = (index, size) => {
+        const cell = document.createElement('div');
+        cell.classList.add('bg-cell');
+        const row = Math.floor(index / size);
+        const col = index % size;
+        const centerStart = size / 2 - 1;
+        const centerEnd = size / 2;
+        if (row === centerStart || row === centerEnd || col === centerStart || col === centerEnd) {
+            cell.classList.add('crosshair-line');
+        }
+        return cell;
+    };
+
+    const createDrawingCell = () => {
+        const cell = document.createElement('div');
+        cell.classList.add('draw-cell');
+        return cell;
+    };
+
+    const startDrawing = (e) => {
+        e.preventDefault();
+        isDrawing = true;
+        draw(e);
+    };
+
+    const stopDrawing = () => {
+        isDrawing = false;
+    };
+
+    const draw = (e) => {
+        if (!isDrawing && e.buttons !== 1) return;
+        const cell = e.target.closest('.draw-cell');
+        if (cell) drawPixels(cell);
+    };
+
+    const drawPixels = (centerCell) => {
+        const centerIndex = Array.from(drawingGrid.children).indexOf(centerCell);
+        const centerCol = centerIndex % currentGridSize;
+        const centerRow = Math.floor(centerIndex / currentGridSize);
+        const brushOffset = Math.floor(currentBrushSize / 2);
+
+        for (let row = centerRow - brushOffset; row < centerRow - brushOffset + currentBrushSize; row++) {
+            for (let col = centerCol - brushOffset; col < centerCol - brushOffset + currentBrushSize; col++) {
+                if (row >= 0 && row < currentGridSize && col >= 0 && col < currentGridSize) {
+                    const index = row * currentGridSize + col;
+                    const cell = drawingGrid.children[index];
+                    if (cell) {
+                        if (isErasing) {
+                            cell.style.backgroundColor = '';
+                            delete cell.dataset.color;
+                        } else if (!cell.dataset.color || cell.dataset.color !== colorPicker.value) {
+                            cell.style.backgroundColor = colorPicker.value;
+                            cell.dataset.color = colorPicker.value;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    const updateGrid = (size) => {
+        currentGridSize = size;
+        const cellSize = 340 / size;
+
+        backgroundGrid.innerHTML = '';
+        drawingGrid.innerHTML = '';
+
+        backgroundGrid.style.gridTemplateColumns = `repeat(${size}, ${cellSize}px)`;
+        drawingGrid.style.gridTemplateColumns = `repeat(${size}, ${cellSize}px)`;
+
+        backgroundGrid.append(...Array.from({length: size * size}, (_, i) => createBackgroundCell(i, size)));
+        drawingGrid.append(...Array.from({length: size * size}, createDrawingCell));
+
+        document.querySelectorAll('.bg-cell, .draw-cell').forEach(cell => {
+            cell.style.width = `${cellSize}px`;
+            cell.style.height = `${cellSize}px`;
+        });
+    };
+
+    const generateSVG = () => {
+        let paths = '';
+        let currentColor = null;
+        drawingGrid.querySelectorAll('.draw-cell').forEach((cell, index) => {
+            if (cell.dataset.color) {
+                const x = index % currentGridSize;
+                const y = Math.floor(index / currentGridSize);
+                if (cell.dataset.color !== currentColor) {
+                    if (currentColor) paths += '" fill="' + currentColor + '"/>';
+                    paths += '<path d="M' + x + ' ' + y;
+                    currentColor = cell.dataset.color;
+                } else {
+                    paths += 'M' + x + ' ' + y;
+                }
+                paths += 'h1v1h-1z';
+            }
+        });
+        if (currentColor) paths += '" fill="' + currentColor + '"/>';
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="' + currentGridSize + '" height="' + currentGridSize + '" viewBox="0 0 ' + currentGridSize + ' ' + currentGridSize + '">' + paths + '</svg>';
+    };
+
+    exportButton.addEventListener('click', () => {
+        const svgString = generateSVG();
+        const svgBlob = new Blob([svgString], {type: "image/svg+xml"});
+        const url = URL.createObjectURL(svgBlob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "icon.svg";
+        link.click();
+        URL.revokeObjectURL(url);
+    });
+
+    copyButton.addEventListener('click', () => {
+        const svgString = generateSVG();
+        navigator.clipboard.writeText(svgString).then(() => {
+            alert('Compressed SVG code copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            alert('Failed to copy SVG code. See console for details.');
+        });
+    });
+
+    clearButton.addEventListener('click', () => {
+        drawingGrid.querySelectorAll('.draw-cell').forEach(cell => {
+            cell.style.backgroundColor = '';
+            delete cell.dataset.color;
+        });
+    });
+
+    gridSizeSelect.addEventListener('change', (e) => {
+        updateGrid(parseInt(e.target.value, 10));
+    });
+
+    brushSizeSelect.addEventListener('change', (e) => {
+        currentBrushSize = parseInt(e.target.value, 10);
+    });
+
+    drawModeButton.addEventListener('click', () => {
+        isErasing = false;
+        drawModeButton.classList.add('active');
+        eraseModeButton.classList.remove('active');
+    });
+
+    eraseModeButton.addEventListener('click', () => {
+        isErasing = true;
+        eraseModeButton.classList.add('active');
+        drawModeButton.classList.remove('active');
+    });
+
+    drawingGrid.addEventListener('mousedown', startDrawing);
+    drawingGrid.addEventListener('mousemove', draw);
+    drawingGrid.addEventListener('mouseup', stopDrawing);
+    drawingGrid.addEventListener('mouseleave', stopDrawing);
+
+    updateGrid(currentGridSize);
+</script>
+</body>
+</html>

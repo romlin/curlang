@@ -1,0 +1,10 @@
+{
+  "connections": [
+    {
+      "source_id": "audio",
+      "target_id": "user-prompt-user-prompt",
+      "source_type": "source",
+      "target_type": "hook"
+    }
+  ]
+}

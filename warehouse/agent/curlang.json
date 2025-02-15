@@ -1,0 +1,50 @@
+[
+  {
+    "id": "part-ZLY4eZADnW",
+    "type": "markdown",
+    "disabled": false,
+    "code": "#agent\nBuilt with Curlang"
+  },
+  {
+    "id": "part-LP4XzXl8w0",
+    "type": "curlang",
+    "disabled": false,
+    "code": "# Download kokoro-v0_19.onnx\n!find \"kokoro-v0_19.onnx\" {\n    get \"https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx\" as \"kokoro-v0_19.onnx\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n} else \"kokoro-v0_19.onnx already exists.\"\n\n# Download voices-v1.0.bin\n!find \"voices-v1.0.bin\" {\n    get \"https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin\" as \"voices-v1.0.bin\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n} else \"voices-v1.0.bin already exists.\"\n\n# Download granite-3.1-2b-instruct-Q4_K_M.gguf\n!find \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n    get \"https://huggingface.co/bartowski/granite-3.1-2b-instruct-GGUF/resolve/main/granite-3.1-2b-instruct-Q4_K_M.gguf\" as \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n} else \"granite-3.1-2b-instruct-Q4_K_M.gguf already exists.\""
+  },
+  {
+    "id": "part-ZMU7r42TPr",
+    "type": "curlang",
+    "disabled": false,
+    "code": "# Check whether kokoro-v0_19.onnx exists\nfind \"kokoro-v0_19.onnx\" {\n    print \"kokoro-v0_19.onnx exists.\"\n} else \"kokoro-v0_19.onnx is missing.\"\n\n# Check whether voices-v1.0.bin exists\nfind \"voices-v1.0.bin\" {\n    print \"voices-v1.0.bin exists.\"\n} else \"voices-v1.0.bin is missing.\"\n\n# Check whether granite-3.1-2b-instruct-Q4_K_M.gguf exists\nfind \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n    print \"granite-3.1-2b-instruct-Q4_K_M.gguf exists.\"\n} else \"granite-3.1-2b-instruct-Q4_K_M.gguf is missing.\""
+  },
+  {
+    "id": "part-Y8XdA3rkV9",
+    "type": "curlang",
+    "disabled": false,
+    "code": "delete \"vector\"\nmake \"vector\"\n\ncmd {\n    curlang vector add-wikipedia \"European Union\" --data-dir \"vector\"\n}"
+  },
+  {
+    "id": "part-EWOAX1XEXE",
+    "type": "curlang",
+    "disabled": false,
+    "code": "@my_variable = \"Hello, World!\"\n\nif (@my_variable == \"Hello, World!\") {\n    print \"@my_variable equals 'Hello, World!'\"\n} else {\n    print \"@my_variable does not equal 'Hello, World!'\"\n}"
+  },
+  {
+    "id": "part-o0hurY5ZzU",
+    "type": "curlang",
+    "disabled": false,
+    "code": "cmd {\n    curlang vector search-text @user_prompt --data-dir \"vector\" --recency-weight 0.1 --json\n} @output\n\nuse json\n\npython {\n    data = json.loads(@output)\n    text = \"\\n\\n\".join(item['text'] for item in data)\n    print(text)\n} @text\n\nprint @text"
+  },
+  {
+    "id": "part-ZCW6MDCqHK",
+    "type": "curlang",
+    "disabled": false,
+    "code": "use Kokoro:kokoro_onnx, Llama:llama_cpp, sf:soundfile"
+  },
+  {
+    "id": "part-ulhFdtG2og",
+    "type": "curlang",
+    "disabled": false,
+    "code": "python {\n    llm = Llama(\n        model_path=\"granite-3.1-2b-instruct-Q4_K_M.gguf\",\n        verbose=False\n    )\n\n    output = llm(\n        f\"<|start_of_role|>system<|end_of_role|>You are a helpful assistant. Be concise and direct.<|end_of_text|><|start_of_role|>user<|end_of_role|>{@user_prompt}<|end_of_text|><|start_of_role|>assistant<|end_of_role|>\",\n        max_tokens=256,\n        stop=[\"<|endoftext|>\"],\n        seed=-1,\n        temperature=0.7\n    )[\"choices\"][0][\"text\"].strip()\n\n    with open(\"output/output.txt\", \"w\") as f:\n        f.write(output)\n\n    print(output)\n\n    kokoro = Kokoro(\"kokoro-v0_19.onnx\", \"voices-v1.0.bin\")\n    \n    samples, sample_rate = kokoro.create(\n        output,\n        voice=\"af_bella\",\n        speed=1.0\n    )\n    \n    sf.write(\"output/output.wav\", samples, sample_rate)\n}"
+  }
+]

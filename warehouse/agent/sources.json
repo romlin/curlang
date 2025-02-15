@@ -1,0 +1,9 @@
+{
+  "sources": [
+    {
+      "source_name": "audio",
+      "source_type": "Input",
+      "source_details": null
+    }
+  ]
+}
