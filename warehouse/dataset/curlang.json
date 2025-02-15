@@ -1,0 +1,14 @@
+[
+  {
+    "id": "part-AJgAgcw1Vf",
+    "type": "bash",
+    "disabled": false,
+    "code": "echo \"Hello from Bash!\""
+  },
+  {
+    "id": "part-oHnwfjJ7l7",
+    "type": "python",
+    "disabled": false,
+    "code": "print(\"Hello from Python!\")"
+  }
+]
