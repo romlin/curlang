@@ -31,7 +31,7 @@ wget = "*"
 kokoro-onnx = "0.4.2"
 llama-cpp-python = "0.3.7 --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu"
 soundfile = "0.13.1"
-tiktoken = "0.8.0"
+tiktoken = "0.9.0"
 
 # [[git]]
 # from_source = "{{git_source_url}}"

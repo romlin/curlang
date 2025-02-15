@@ -29,7 +29,7 @@ wget = "*"
 
 [packages.python]
 pexpect = "4.9.0"
-tiktoken = "0.8.0"
+tiktoken = "0.9.0"
 
 # [[git]]
 # from_source = "{{git_source_url}}"
