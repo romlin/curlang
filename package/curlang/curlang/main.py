@@ -2867,6 +2867,15 @@ def setup_nextjs_project(app_dir: Path) -> bool:
             json.dump(pkg, f, indent=2)
 
         subprocess.run(
+            ["npm", "install", "eslint@^9", "eslint-config-next",
+             "--save-dev"],
+            cwd=str(app_dir),
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+        subprocess.run(
             ["npm", "install", "three", "@types/three", "@react-three/fiber"],
             cwd=str(app_dir),
             check=True,
@@ -2874,11 +2883,19 @@ def setup_nextjs_project(app_dir: Path) -> bool:
             stderr=subprocess.DEVNULL
         )
 
-        console.print(
-            "[bold green]Successfully set up a new Next.js project[/bold green]"
+        subprocess.run(
+            ["npm", "install", "@react-three/drei"],
+            cwd=str(app_dir),
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         )
+
+        console.print(
+            "[bold green]Successfully set up a new Next.js project[/bold green]")
         console.print("")
         return True
+
     except subprocess.CalledProcessError as e:
         logger.error("Failed to set up Next.js project: %s", e)
         return False
