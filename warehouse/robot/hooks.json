@@ -4,11 +4,11 @@
       "id": 2,
       "hook_name": "user_prompt",
       "hook_placement": "before",
-      "hook_script": "user_prompt=\"What were the primary reasons for the founding of the European Union?\"",
-      "hook_type": "python",
+      "hook_script": "@user_prompt = \"What are the Three Laws of Robotics?\"",
+      "hook_type": "curlang",
       "expose_to_public_api": false,
       "show_on_frontpage": true,
-      "created_at": "2025-02-02 18:11:06"
+      "created_at": "2025-02-16 19:35:56"
     },
     {
       "id": 1,
@@ -18,7 +18,7 @@
       "hook_type": "bash",
       "expose_to_public_api": false,
       "show_on_frontpage": false,
-      "created_at": "2025-02-01 21:22:03"
+      "created_at": "2025-02-16 19:21:30"
     }
   ]
 }
