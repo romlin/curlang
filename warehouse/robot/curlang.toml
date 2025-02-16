@@ -1,10 +1,8 @@
 # curlang.toml
-# WIP ({{current_date}})
-
 version = "0.0.1"
 
 [environment]
-model_name = "agent"
+model_name = "robot"
 python_version = "3.12"
 
 [[port]]
@@ -45,15 +43,15 @@ tiktoken = "0.9.0"
 [[file]]
 
 [[file]]
-from_source = "https://raw.githubusercontent.com/romlin/curlang/refs/heads/main/warehouse/agent/curlang.json"
+from_source = "https://raw.githubusercontent.com/romlin/curlang/refs/heads/main/warehouse/robot/curlang.json"
 to_destination = "curlang.json"
 
 [[file]]
-from_source = "https://raw.githubusercontent.com/romlin/curlang/refs/heads/main/warehouse/agent/build.sh"
+from_source = "https://raw.githubusercontent.com/romlin/curlang/refs/heads/main/warehouse/robot/build.sh"
 to_destination = "build.sh"
 
 [[file]]
-from_source = "https://raw.githubusercontent.com/romlin/curlang/refs/heads/main/warehouse/agent/device.sh"
+from_source = "https://raw.githubusercontent.com/romlin/curlang/refs/heads/main/warehouse/robot/device.sh"
 to_destination = "device.sh"
 
 [[run]]

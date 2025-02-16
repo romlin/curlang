@@ -1,6 +1,4 @@
-# curlang.toml
-# WIP ({{current_date}})
-
+# curlang.tomls
 version = "0.0.1"
 
 [environment]

@@ -1,4 +1,4 @@
-# agent
+# robot
 
 Curlang is experimental. Avoid use in production.
 
