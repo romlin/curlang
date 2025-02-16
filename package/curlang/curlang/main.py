@@ -3955,7 +3955,7 @@ def setup_arg_parser():
     )
 
     parser_add.add_argument(
-        "--curlang",
+        "--dir",
         help="Curlang directory to add package to (uses last unboxed curlang if not specified)"
     )
 
@@ -3972,14 +3972,14 @@ def curlang_cli_handle_add(args, session):
         )
         return
 
-    if args.curlang:
-        curlang_dir = Path(args.curlang)
+    if args.dir:
+        curlang_dir = Path(args.dir)
     else:
         last_curlang = curlang_get_last_curlang()
 
         if not last_curlang:
             console.print(
-                "[bold red]Error: No curlang specified and no cached curlang found. Please specify a curlang with --curlang[/bold red]"
+                "[bold red]Error: No curlang specified and no cached curlang found. Please specify a curlang with --dir[/bold red]"
             )
             return
         curlang_dir = Path(last_curlang)
