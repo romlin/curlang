@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
 import { GridHelper, Mesh } from "three";
 
 declare global {
@@ -59,7 +60,6 @@ const Robot: React.FC = () => {
     analyser: AnalyserNode;
   }
   const audioRef = useRef<AudioRefType | null>(null);
-
   const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isSoundOnRef = useRef(isSoundOn);
@@ -75,6 +75,17 @@ const Robot: React.FC = () => {
     currentTextRef.current = currentText;
   }, [currentText]);
 
+  const truncateText = (text: string, maxLength: number): string => {
+    if (text.length <= maxLength) return text;
+    let truncated = text.slice(0, maxLength);
+    const lastSpace = truncated.lastIndexOf(" ");
+    if (lastSpace > 0) {
+      truncated = truncated.slice(0, lastSpace);
+    }
+    truncated = truncated.replace(/[\s!,.?:;]+$/, "");
+    return truncated + "...";
+  };
+
   const checkForTextUpdates = useCallback(async () => {
     try {
       const response = await fetch(`/output/output.txt?t=${Date.now()}`, {
@@ -86,8 +97,7 @@ const Robot: React.FC = () => {
       if (newText !== currentTextRef.current && !isNaN(textTimestamp)) {
         setPendingUpdate({ text: newText, textTimestamp });
       }
-    } catch {
-    }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -98,10 +108,8 @@ const Robot: React.FC = () => {
         });
         const text = response.ok ? await response.text() : "File not found.";
         setCurrentText(truncateText(text, MAX_TEXT_LENGTH));
-      } catch {
-      }
+      } catch {}
     };
-
     loadInitialText();
     const intervalId = setInterval(checkForTextUpdates, 3000);
     return () => {
@@ -118,36 +126,27 @@ const Robot: React.FC = () => {
         audioRef.current.context.close();
         audioRef.current = null;
       }
-
       const response = await fetch(`/output/output.wav?t=${Date.now()}`);
       if (!response.ok) return;
-
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) throw new Error("Web Audio API not supported");
       const audioContext = new AudioContextClass();
       const audioData = await response.arrayBuffer();
       const audioBuffer = await audioContext.decodeAudioData(audioData);
-
       const bufferSource = audioContext.createBufferSource();
       bufferSource.buffer = audioBuffer;
-
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
       bufferSource.connect(analyser);
       analyser.connect(audioContext.destination);
-
       setCurrentText(newText);
-
       bufferSource.start(0);
-
       audioRef.current = {
         context: audioContext,
         source: bufferSource,
         analyser,
       };
-
       const animateSphere = () => {
         if (!analyser) return;
         analyser.getByteFrequencyData(dataArray);
@@ -156,9 +155,7 @@ const Robot: React.FC = () => {
         setAudioLevel(normalized);
         animationFrameRef.current = requestAnimationFrame(animateSphere);
       };
-
       animateSphere();
-
       bufferSource.onended = () => {
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
@@ -177,13 +174,11 @@ const Robot: React.FC = () => {
 
   useEffect(() => {
     if (!pendingUpdate) return;
-
     if (!isSoundOnRef.current) {
       setCurrentText(pendingUpdate.text);
       setPendingUpdate(null);
       return;
     }
-
     const verifyAndPlayAudio = async () => {
       try {
         const headResponse = await fetch(`/output/output.wav?t=${Date.now()}`, {
@@ -201,9 +196,7 @@ const Robot: React.FC = () => {
         checkTimeoutRef.current = setTimeout(verifyAndPlayAudio, 1000);
       }
     };
-
     verifyAndPlayAudio();
-
     return () => {
       if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current);
     };
@@ -224,24 +217,11 @@ const Robot: React.FC = () => {
     }
   };
 
-  const truncateText = (text: string, maxLength: number): string => {
-    if (text.length <= maxLength) return text;
-    let truncated = text.slice(0, maxLength);
-    const lastSpace = truncated.lastIndexOf(" ");
-    if (lastSpace > 0) {
-      truncated = truncated.slice(0, lastSpace);
-    }
-    truncated = truncated.replace(/[\s!,.?:;]+$/, "");
-    return truncated + "...";
-  };
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 p-4">
       <button
         onClick={handleSoundToggle}
-        className={`absolute top-4 right-4 cursor-pointer text-white ${
-          isSoundOn ? "opacity-100" : "opacity-50"
-        }`}
+        className={`absolute top-4 right-4 cursor-pointer text-white ${isSoundOn ? "opacity-100" : "opacity-50"}`}
         title={isSoundOn ? "Turn sound off" : "Turn sound on"}
       >
         <svg
@@ -259,11 +239,11 @@ const Robot: React.FC = () => {
           />
         </svg>
       </button>
-
       <div className="flex flex-col items-center space-y-4 w-full max-w-md">
         <div className="w-full h-64">
           <Canvas camera={{ position: [0, 5, 10], fov: 60 }}>
             <Scene audioLevel={audioLevel} />
+            <OrbitControls />
           </Canvas>
         </div>
         <div className="w-full flex flex-col items-center">
