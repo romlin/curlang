@@ -37,7 +37,7 @@ setup(
     ],
     author="Henric Romlin",
     author_email="henric@romlin.com",
-    description="Ready-to-assemble AI",
+    description="The Robot Language",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/romlin/curlang",

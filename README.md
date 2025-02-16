@@ -4,6 +4,8 @@
 
 > *2025-02-15: Curlang (formerly Flatpack), has seen over 6,000 commits since May 2023. This rebranding marks a fresh start, and we appreciate your continued support as we remain in stealth mode.*
 
+## The Robot Language
+
 Curlang is experimental. Avoid use in production.
 
 Curlang 处于实验阶段，请勿用于生产。
