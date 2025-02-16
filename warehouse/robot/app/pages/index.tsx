@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -60,7 +62,7 @@ const Robot: React.FC = () => {
     analyser: AnalyserNode;
   }
   const audioRef = useRef<AudioRefType | null>(null);
-  const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const checkTimeoutRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isSoundOnRef = useRef(isSoundOn);
   const currentTextRef = useRef(currentText);
@@ -97,7 +99,9 @@ const Robot: React.FC = () => {
       if (newText !== currentTextRef.current && !isNaN(textTimestamp)) {
         setPendingUpdate({ text: newText, textTimestamp });
       }
-    } catch {}
+    } catch {
+      // handle error if necessary
+    }
   }, []);
 
   useEffect(() => {
@@ -108,7 +112,9 @@ const Robot: React.FC = () => {
         });
         const text = response.ok ? await response.text() : "File not found.";
         setCurrentText(truncateText(text, MAX_TEXT_LENGTH));
-      } catch {}
+      } catch {
+        // handle error if necessary
+      }
     };
     loadInitialText();
     const intervalId = setInterval(checkForTextUpdates, 3000);
@@ -193,7 +199,7 @@ const Robot: React.FC = () => {
         await playAudio(pendingUpdate.text);
         setPendingUpdate(null);
       } catch {
-        checkTimeoutRef.current = setTimeout(verifyAndPlayAudio, 1000);
+        checkTimeoutRef.current = window.setTimeout(verifyAndPlayAudio, 1000);
       }
     };
     verifyAndPlayAudio();
