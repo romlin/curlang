@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="curlang",
-    version="0.0.2",
+    version="0.0.4",
     license="Apache-2.0",
     packages=find_packages(),
     package_data={

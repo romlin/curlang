@@ -36,7 +36,7 @@ from .core.constants import (
 
 if not IMPORT_CACHE_FILE.exists():
     console.print(
-        "[bold green]Initialising Curlang for the first time.[/bold green]"
+        "[bold green]Initialising Curlang for the first time...[/bold green]"
     )
 
 import aiofiles
@@ -610,7 +610,8 @@ def check_node_and_run_npm_install(web_dir):
             console.print(f"[green]Node.js version:[/green] {node_version}")
             console.print("")
             console.print(
-                "[green]npm is assumed to be installed with Node.js[/green]")
+                "[green]npm is assumed to be installed with Node.js[/green]"
+            )
             console.print("")
 
             web_dir_path = Path(web_dir).resolve()
@@ -2819,7 +2820,6 @@ def curlang_list_directories(session: httpx.Client) -> str:
 
 
 def setup_nextjs_project(app_dir: Path) -> bool:
-    """Set up a new Next.js project in the specified directory."""
     if app_dir.exists():
         shutil.rmtree(app_dir)
 
@@ -2852,6 +2852,28 @@ def setup_nextjs_project(app_dir: Path) -> bool:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
+
+        package_json_path = app_dir / "package.json"
+
+        with open(package_json_path, "r") as f:
+            pkg = json.load(f)
+
+        pkg["dependencies"]["react"] = "^18.2.0"
+        pkg["dependencies"]["react-dom"] = "^18.2.0"
+        pkg["devDependencies"]["@types/react"] = "^18"
+        pkg["devDependencies"]["@types/react-dom"] = "^18"
+
+        with open(package_json_path, "w") as f:
+            json.dump(pkg, f, indent=2)
+
+        subprocess.run(
+            ["npm", "install", "three", "@types/three", "@react-three/fiber"],
+            cwd=str(app_dir),
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
         console.print(
             "[bold green]Successfully set up a new Next.js project[/bold green]"
         )
@@ -6554,6 +6576,7 @@ def curlang_cli_handle_run(args, session):
                 try:
                     nextjs_process.terminate()
                     await asyncio.sleep(1)
+
                     if nextjs_process.poll() is None:
                         nextjs_process.kill()
                 except:
@@ -6568,6 +6591,7 @@ def curlang_cli_handle_run(args, session):
         try:
             current_process = psutil.Process()
             children = current_process.children(recursive=True)
+
             for child in children:
                 try:
                     child.terminate()
@@ -6575,6 +6599,7 @@ def curlang_cli_handle_run(args, session):
                     pass
 
             gone, alive = psutil.wait_procs(children, timeout=3)
+
             for process in alive:
                 try:
                     process.kill()
