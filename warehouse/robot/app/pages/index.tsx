@@ -1,4 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { GridHelper, Mesh } from "three";
+
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
+}
 
 interface PendingUpdate {
   text: string;
@@ -7,7 +15,39 @@ interface PendingUpdate {
 
 const MAX_TEXT_LENGTH = 128;
 
-const OrganicPill: React.FC = () => {
+function Sphere({ audioLevel }: { audioLevel: number }) {
+  const meshRef = useRef<Mesh | null>(null);
+  useFrame(() => {
+    if (meshRef.current) {
+      const scale = 1 + audioLevel * 0.5;
+      meshRef.current.scale.set(scale, scale, scale);
+    }
+  });
+  return (
+    <mesh ref={meshRef} position={[0, 1, 0]}>
+      <sphereGeometry args={[1, 32, 32]} />
+      <meshStandardMaterial color="#ff69b4" />
+    </mesh>
+  );
+}
+
+function GridFloor() {
+  const grid = new GridHelper(20, 20, "#ffffff", "#444444");
+  return <primitive object={grid} />;
+}
+
+function Scene({ audioLevel }: { audioLevel: number }) {
+  return (
+    <>
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[5, 10, 7.5]} intensity={1} />
+      <Sphere audioLevel={audioLevel} />
+      <GridFloor />
+    </>
+  );
+}
+
+const Robot: React.FC = () => {
   const [currentText, setCurrentText] = useState("Loading...");
   const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(null);
   const [isSoundOn, setIsSoundOn] = useState(false);
@@ -82,8 +122,7 @@ const OrganicPill: React.FC = () => {
       const response = await fetch(`/output/output.wav?t=${Date.now()}`);
       if (!response.ok) return;
 
-      const AudioContextClass =
-        window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) throw new Error("Web Audio API not supported");
       const audioContext = new AudioContextClass();
       const audioData = await response.arrayBuffer();
@@ -109,16 +148,16 @@ const OrganicPill: React.FC = () => {
         analyser,
       };
 
-      const animateOrb = () => {
+      const animateSphere = () => {
         if (!analyser) return;
         analyser.getByteFrequencyData(dataArray);
         const avg = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
         const normalized = avg / 255;
         setAudioLevel(normalized);
-        animationFrameRef.current = requestAnimationFrame(animateOrb);
+        animationFrameRef.current = requestAnimationFrame(animateSphere);
       };
 
-      animateOrb();
+      animateSphere();
 
       bufferSource.onended = () => {
         if (animationFrameRef.current) {
@@ -196,11 +235,6 @@ const OrganicPill: React.FC = () => {
     return truncated + "...";
   };
 
-  const orbStyle = {
-    transform: `scale(${1 + audioLevel * 0.5})`,
-    transition: "transform 10ms linear",
-  };
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 p-4">
       <button
@@ -226,16 +260,20 @@ const OrganicPill: React.FC = () => {
         </svg>
       </button>
 
-      <div className="flex flex-row items-center justify-center space-x-8 w-full max-w-md">
-        <div
-          id="pill"
-          style={orbStyle}
-          className="bg-gradient-to-b from-pink-400 via-purple-300 to-blue-300 w-20 h-20 rounded-full flex-shrink-0"
-        />
-        <div className="w-60 h-40 flex flex-col justify-center">
-          <p className="text-white font-sans text-sm leading-relaxed hyphens-auto">{currentText}</p>
+      <div className="flex flex-col items-center space-y-4 w-full max-w-md">
+        <div className="w-full h-64">
+          <Canvas camera={{ position: [0, 5, 10], fov: 60 }}>
+            <Scene audioLevel={audioLevel} />
+          </Canvas>
+        </div>
+        <div className="w-full flex flex-col items-center">
+          <p className="text-white font-sans text-sm leading-relaxed text-center">
+            {currentText}
+          </p>
           {pendingUpdate && isSoundOn && (
-            <p className="text-sm leading-relaxed text-gray-400 mt-2">Generating speech...</p>
+            <p className="text-sm leading-relaxed text-gray-400 mt-2">
+              Generating speech...
+            </p>
           )}
         </div>
       </div>
@@ -243,4 +281,4 @@ const OrganicPill: React.FC = () => {
   );
 };
 
-export default OrganicPill;
+export default Robot;
