@@ -51,7 +51,7 @@ function Scene({ audioLevel }: { audioLevel: number }) {
   );
 }
 
-const Robot: React.FC = () => {
+const WorldView: React.FC = () => {
   const [currentText, setCurrentText] = useState("Loading...");
   const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(null);
   const [isSoundOn, setIsSoundOn] = useState(false);
@@ -265,6 +265,6 @@ const Robot: React.FC = () => {
   );
 };
 
-Robot.displayName = "Robot";
+WorldView.displayName = "WorldView";
 
-export default Robot;
+export default WorldView;
