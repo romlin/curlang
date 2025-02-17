@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { GridHelper, Mesh } from "three";
@@ -34,10 +34,11 @@ function Sphere({ audioLevel }: { audioLevel: number }) {
   );
 }
 
-function GridFloor() {
+const GridFloor = memo(() => {
   const grid = new GridHelper(20, 20, "#ffffff", "#444444");
   return <primitive object={grid} />;
-}
+});
+GridFloor.displayName = "GridFloor";
 
 function Scene({ audioLevel }: { audioLevel: number }) {
   return (
@@ -62,22 +63,20 @@ const Robot: React.FC = () => {
     analyser: AnalyserNode;
   }
   const audioRef = useRef<AudioRefType | null>(null);
-  const checkTimeoutRef = useRef<number | null>(null);
+  const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isSoundOnRef = useRef(isSoundOn);
   const currentTextRef = useRef(currentText);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     isSoundOnRef.current = isSoundOn;
   }, [isSoundOn]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     currentTextRef.current = currentText;
   }, [currentText]);
 
-  const truncateText = (text: string, maxLength: number): string => {
+  const truncateText = useCallback((text: string, maxLength: number): string => {
     if (text.length <= maxLength) return text;
     let truncated = text.slice(0, maxLength);
     const lastSpace = truncated.lastIndexOf(" ");
@@ -86,7 +85,7 @@ const Robot: React.FC = () => {
     }
     truncated = truncated.replace(/[\s!,.?:;]+$/, "");
     return truncated + "...";
-  };
+  }, []);
 
   const checkForTextUpdates = useCallback(async () => {
     try {
@@ -99,10 +98,8 @@ const Robot: React.FC = () => {
       if (newText !== currentTextRef.current && !isNaN(textTimestamp)) {
         setPendingUpdate({ text: newText, textTimestamp });
       }
-    } catch {
-      // handle error if necessary
-    }
-  }, []);
+    } catch {}
+  }, [truncateText]);
 
   useEffect(() => {
     const loadInitialText = async () => {
@@ -112,9 +109,7 @@ const Robot: React.FC = () => {
         });
         const text = response.ok ? await response.text() : "File not found.";
         setCurrentText(truncateText(text, MAX_TEXT_LENGTH));
-      } catch {
-        // handle error if necessary
-      }
+      } catch {}
     };
     loadInitialText();
     const intervalId = setInterval(checkForTextUpdates, 3000);
@@ -123,60 +118,63 @@ const Robot: React.FC = () => {
       if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [checkForTextUpdates]);
+  }, [checkForTextUpdates, truncateText]);
 
-  const playAudio = useCallback(async (newText: string) => {
-    try {
-      if (audioRef.current) {
-        audioRef.current.source.stop();
-        audioRef.current.context.close();
-        audioRef.current = null;
-      }
-      const response = await fetch(`/output/output.wav?t=${Date.now()}`);
-      if (!response.ok) return;
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) throw new Error("Web Audio API not supported");
-      const audioContext = new AudioContextClass();
-      const audioData = await response.arrayBuffer();
-      const audioBuffer = await audioContext.decodeAudioData(audioData);
-      const bufferSource = audioContext.createBufferSource();
-      bufferSource.buffer = audioBuffer;
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      bufferSource.connect(analyser);
-      analyser.connect(audioContext.destination);
-      setCurrentText(newText);
-      bufferSource.start(0);
-      audioRef.current = {
-        context: audioContext,
-        source: bufferSource,
-        analyser,
-      };
-      const animateSphere = () => {
-        if (!analyser) return;
-        analyser.getByteFrequencyData(dataArray);
-        const avg = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-        const normalized = avg / 255;
-        setAudioLevel(normalized);
-        animationFrameRef.current = requestAnimationFrame(animateSphere);
-      };
-      animateSphere();
-      bufferSource.onended = () => {
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = null;
+  const playAudio = useCallback(
+    async (newText: string) => {
+      try {
+        if (audioRef.current) {
+          audioRef.current.source.stop();
+          audioRef.current.context.close();
+          audioRef.current = null;
         }
+        const response = await fetch(`/output/output.wav?t=${Date.now()}`);
+        if (!response.ok) return;
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) throw new Error("Web Audio API not supported");
+        const audioContext = new AudioContextClass();
+        const audioData = await response.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(audioData);
+        const bufferSource = audioContext.createBufferSource();
+        bufferSource.buffer = audioBuffer;
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        bufferSource.connect(analyser);
+        analyser.connect(audioContext.destination);
+        setCurrentText(newText);
+        bufferSource.start(0);
+        audioRef.current = {
+          context: audioContext,
+          source: bufferSource,
+          analyser,
+        };
+        const animateSphere = () => {
+          if (!audioRef.current) return;
+          audioRef.current.analyser.getByteFrequencyData(dataArray);
+          const avg = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+          const normalized = avg / 255;
+          setAudioLevel(normalized);
+          animationFrameRef.current = requestAnimationFrame(animateSphere);
+        };
+        animateSphere();
+        bufferSource.onended = () => {
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          setAudioLevel(0);
+          audioRef.current = null;
+          checkForTextUpdates();
+        };
+      } catch {
         setAudioLevel(0);
         audioRef.current = null;
-        checkForTextUpdates();
-      };
-    } catch {
-      setAudioLevel(0);
-      audioRef.current = null;
-      setPendingUpdate(null);
-    }
-  }, [checkForTextUpdates]);
+        setPendingUpdate(null);
+      }
+    },
+    [checkForTextUpdates]
+  );
 
   useEffect(() => {
     if (!pendingUpdate) return;
@@ -199,7 +197,7 @@ const Robot: React.FC = () => {
         await playAudio(pendingUpdate.text);
         setPendingUpdate(null);
       } catch {
-        checkTimeoutRef.current = window.setTimeout(verifyAndPlayAudio, 1000);
+        checkTimeoutRef.current = setTimeout(verifyAndPlayAudio, 1000);
       }
     };
     verifyAndPlayAudio();
@@ -266,5 +264,7 @@ const Robot: React.FC = () => {
     </div>
   );
 };
+
+Robot.displayName = "Robot";
 
 export default Robot;
