@@ -6508,18 +6508,38 @@ def curlang_cli_handle_run(args, session):
         )
         return
 
-    config = uvicorn.Config(
-        app,
-        host=host,
-        http="auto",
-        lifespan="on",
-        loop="asyncio",
-        port=fastapi_port,
-        timeout_graceful_shutdown=30,
-        timeout_keep_alive=0,
+    uvicorn_thread = threading.Thread(
+        target=lambda: uvicorn.run(
+            app,
+            host=host,
+            port=fastapi_port
+        ),
+        daemon=True
     )
 
-    server = uvicorn.Server(config)
+    uvicorn_thread.start()
+    start_time = time.time()
+
+    while True:
+        try:
+            r = requests.get(
+                f"http://{host}:{fastapi_port}/api/heartbeat",
+                timeout=2
+            )
+
+            if r.status_code == 200:
+                break
+        except Exception:
+            pass
+
+        if time.time() - start_time > 30:
+            console.print(
+                "[bold red]FastAPI server did not start in time.[/bold red]"
+            )
+            return
+
+        time.sleep(1)
+
     background_tasks = BackgroundTasks()
     scheduler_task = background_tasks.add_task(run_scheduler)
 
@@ -6666,14 +6686,7 @@ def curlang_cli_handle_run(args, session):
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    try:
-        server.run()
-    except KeyboardInterrupt:
-        signal_handler(signal.SIGINT, None)
-    except Exception as e:
-        logger.error("Server error: %s", e)
-        console.print(f"Server error: {e}", style="bold red")
-        signal_handler(signal.SIGTERM, None)
+    uvicorn_thread.join()
 
     return 0
 
