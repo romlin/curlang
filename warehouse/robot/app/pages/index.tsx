@@ -170,7 +170,7 @@ const RobotArm = memo(
                                     <perspectiveCamera
                                         ref={forearmCameraRef}
                                         fov={60}
-                                        aspect={320 / 240}
+                                        aspect={220 / 140}
                                         near={0.1}
                                         far={100}
                                         position={[1, 0, 0.5]}
@@ -230,7 +230,7 @@ function ForearmView({scene, robotCamera}: {
         if (!viewRef.current) return
         viewRef.current.innerHTML = ''
         const renderer = new THREE.WebGLRenderer({antialias: true})
-        renderer.setSize(318, 238)
+        renderer.setSize(218, 138)
         renderer.setClearColor(0x000000)
         viewRef.current.appendChild(renderer.domElement)
         rendererRef.current = renderer
@@ -244,8 +244,8 @@ function ForearmView({scene, robotCamera}: {
         }
     }, [scene, robotCamera])
     return <div ref={viewRef} style={{
-        width: '320px',
-        height: '240px',
+        width: '220px',
+        height: '140px',
         border: '1px solid white'
     }}/>
 }
