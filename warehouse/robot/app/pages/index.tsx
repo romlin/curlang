@@ -105,6 +105,7 @@ const RobotArm = memo(
         const pincerClaw1Ref = useRef<THREE.Mesh>(null)
         const pincerClaw2Ref = useRef<THREE.Mesh>(null)
         const forearmCameraRef = useRef<THREE.PerspectiveCamera>(null)
+
         useImperativeHandle(ref, () => ({
             base: baseRef.current!,
             shoulder: shoulderRef.current!,
@@ -116,6 +117,7 @@ const RobotArm = memo(
             pincerClaw2: pincerClaw2Ref.current!,
             camera: forearmCameraRef.current!,
         }))
+
         return (
             <group position={[0, 0.1, 0]}>
                 <group ref={baseRef}>
@@ -256,6 +258,7 @@ const Home: NextPage = () => {
     const [command, setCommand] = useState('')
     const [forearmCamera, setForearmCamera] = useState<THREE.PerspectiveCamera | null>(null)
     const [scene, setScene] = useState<THREE.Scene | null>(null)
+
     useEffect(() => {
         const interval = setInterval(() => {
             if (robotRef.current && robotRef.current.camera) {
@@ -265,6 +268,7 @@ const Home: NextPage = () => {
         }, 100)
         return () => clearInterval(interval)
     }, [])
+
     useEffect(() => {
         let active = true
 
@@ -282,6 +286,7 @@ const Home: NextPage = () => {
             active = false
         }
     }, [])
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!robotControllerRef.current) return
@@ -318,11 +323,14 @@ const Home: NextPage = () => {
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [])
-    const handleCommandSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault()
+
+    // Updated: handleCommandSubmit no longer receives FormEvent,
+    // and we call it from a button click instead of onSubmit in a form.
+    const handleCommandSubmit = () => {
         if (!robotControllerRef.current) return
         const cmd = command.trim()
         const match = cmd.match(/^([BSE])([+-]\d+(?:\.\d+)?)$/i)
+
         if (match) {
             const part = match[1].toUpperCase()
             const deltaRad = THREE.MathUtils.degToRad(parseFloat(match[2]))
@@ -334,7 +342,8 @@ const Home: NextPage = () => {
                     break
                 }
                 case 'S': {
-                    const currentRotation = robotControllerRef.current.robotParts.shoulder!.rotation.x
+                    const currentRotation =
+                        robotControllerRef.current.robotParts.shoulder!.rotation.x
                     const newRotation = THREE.MathUtils.clamp(
                         currentRotation + deltaRad,
                         robotControllerRef.current.shoulderMin,
@@ -345,7 +354,8 @@ const Home: NextPage = () => {
                     break
                 }
                 case 'E': {
-                    const currentRotation = robotControllerRef.current.robotParts.elbow!.rotation.x
+                    const currentRotation =
+                        robotControllerRef.current.robotParts.elbow!.rotation.x
                     const newRotation = THREE.MathUtils.clamp(
                         currentRotation + deltaRad,
                         robotControllerRef.current.elbowMin,
@@ -364,6 +374,7 @@ const Home: NextPage = () => {
         }
         setCommand('')
     }
+
     return (
         <>
             <Head>
@@ -371,56 +382,65 @@ const Home: NextPage = () => {
                 <meta charSet="UTF-8"/>
                 <meta name="viewport"
                       content="width=device-width, initial-scale=1.0"/>
-                <style>{`
-          body, html { margin: 0; padding: 0; width: 100%; height: 100%; }
-          canvas { display: block; }
-          #instructions { position: absolute; top: 20px; left: 20px; z-index: 10; color: #fff; font-family: Arial, sans-serif; line-height: 1.5; font-size: 12px; }
-          #instructions ul { margin: 0; }
-          #instructions li { margin-bottom: 5px; }
-          #commandForm { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10; }
-          #commandForm input { padding: 10px; font-size: 12px; width: 300px; border: 0; color: #000; }
-          #forearmViewContainer { position: fixed; top: 10px; right: 10px; z-index: 20; background: #000; border: 1px solid #fff; }
-        `}</style>
             </Head>
+
             <div id="instructions">
                 <ul>
-                    <li><strong>Q/E:</strong> Rotate Base (keyboard)</li>
-                    <li><strong>W/S:</strong> Move Shoulder (keyboard)</li>
-                    <li><strong>R/F:</strong> Move Elbow (keyboard)</li>
-                    <li><strong>M:</strong> Toggle Demo Mode (keyboard/command)
+                    <li><strong>Q/E:</strong> Rotate Base</li>
+                    <li><strong>W/S:</strong> Move Shoulder</li>
+                    <li><strong>R/F:</strong> Move Elbow</li>
+                    <li><strong>M:</strong> Demo Mode
                         (Current: {demoState ? 'ON' : 'OFF'})
                     </li>
                 </ul>
             </div>
-            <Canvas shadows camera={{position: [2, 1, 5], fov: 75}}
-                    style={{width: '100vw', height: '100vh'}}>
+
+            <Canvas
+                shadows
+                camera={{position: [2, 1, 5], fov: 75}}
+                style={{width: '100vw', height: '100vh'}}
+            >
                 <SceneSetter setScene={setScene}/>
                 <color attach="background" args={['#000']}/>
                 <ambientLight intensity={0.4}/>
-                <directionalLight position={[0, 10, 10]} intensity={0.5}
-                                  castShadow shadow-mapSize-width={1024}
-                                  shadow-mapSize-height={1024}/>
+                <directionalLight
+                    position={[0, 10, 10]}
+                    intensity={0.5}
+                    castShadow
+                    shadow-mapSize-width={1024}
+                    shadow-mapSize-height={1024}
+                />
                 <OrbitControls maxPolarAngle={Math.PI / 2 - 0.1}
                                minPolarAngle={0}/>
-                <Grid position={[0, 0.01, 0]} args={[10, 10]}
-                      cellColor="#bbbbbb" sectionColor="#dddddd" cellSize={1}
-                      sectionSize={10}/>
+                <Grid
+                    position={[0, 0.01, 0]}
+                    args={[10, 10]}
+                    cellColor="#bbbbbb"
+                    sectionColor="#dddddd"
+                    cellSize={1}
+                    sectionSize={10}
+                />
                 <Physics gravity={[0, -9.82, 0]}>
                     <RobotUpdater/>
                     <RobotArm ref={robotRef}/>
                     <Floor/>
                 </Physics>
             </Canvas>
+
             <div id="forearmViewContainer">
-                {scene && forearmCamera &&
-                    <ForearmView scene={scene} robotCamera={forearmCamera}/>}
+                {scene && forearmCamera && (
+                    <ForearmView scene={scene} robotCamera={forearmCamera}/>
+                )}
             </div>
+
             <div id="commandForm">
-                <form onSubmit={handleCommandSubmit}>
-                    <input type="text" value={command}
-                           onChange={(e) => setCommand(e.target.value)}
-                           placeholder="Enter command, e.g. B+30, S-15, E+20, or M"/>
-                </form>
+                <input
+                    type="text"
+                    value={command}
+                    onChange={(e) => setCommand(e.target.value)}
+                    placeholder="Enter command, e.g. B+30, S-15, E+20, or M"
+                />
+                <button onClick={handleCommandSubmit}>Send</button>
             </div>
         </>
     )
