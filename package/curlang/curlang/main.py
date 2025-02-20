@@ -3215,17 +3215,17 @@ def unbox_from_local_curlang(
                 package_manager,
                 is_curlang=True
         ):
-            cleanup_curlang_dir(curlang_dir)
+            # cleanup_curlang_dir(curlang_dir)
             return False
 
         if not finalize_setup(curlang_dir):
-            cleanup_curlang_dir(curlang_dir)
+            # cleanup_curlang_dir(curlang_dir)
             return False
 
         return True
     except Exception as e:
         logger.error("Failed to unbox local .curlang: %s", e)
-        cleanup_curlang_dir(curlang_dir)
+        # cleanup_curlang_dir(curlang_dir)
         return False
 
 
@@ -3252,11 +3252,11 @@ def unbox_from_local_directory(
                 package_manager,
                 is_curlang=False
         ):
-            cleanup_curlang_dir(curlang_dir)
+            # cleanup_curlang_dir(curlang_dir)
             return False
 
         if not finalize_setup(curlang_dir):
-            cleanup_curlang_dir(curlang_dir)
+            # cleanup_curlang_dir(curlang_dir)
             return False
 
         return True
@@ -3264,7 +3264,7 @@ def unbox_from_local_directory(
         logger.error(
             "Failed to unbox local directory: %s", e
         )
-        cleanup_curlang_dir(curlang_dir)
+        # cleanup_curlang_dir(curlang_dir)
         return False
 
 
