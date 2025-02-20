@@ -3004,15 +3004,15 @@ def setup_curlang_directory(
                 web_dir,
                 session
         ):
-            cleanup_curlang_dir(curlang_dir)
+            # cleanup_curlang_dir(curlang_dir)
             return False, None
 
         if not check_node_and_run_npm_install(web_dir):
-            cleanup_curlang_dir(curlang_dir)
+            # cleanup_curlang_dir(curlang_dir)
             return False, None
 
         if not setup_nextjs_project(app_dir):
-            cleanup_curlang_dir(curlang_dir)
+            # cleanup_curlang_dir(curlang_dir)
             return False, None
 
         for subdir in ["public", "pages"]:
@@ -3057,7 +3057,7 @@ def setup_curlang_directory(
 
     except Exception as e:
         logger.error("Failed to set up curlang directory: %s", e)
-        cleanup_curlang_dir(curlang_dir)
+        # cleanup_curlang_dir(curlang_dir)
         return False, None
 
 

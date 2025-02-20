@@ -79,4 +79,4 @@ This project is released under the [Apache License 2.0](https://github.com/romli
 - **[zstandard](https://pypi.org/project/zstandard/)**\
   BSD License ([LICENSE](https://github.com/indygreg/python-zstandard/blob/main/LICENSE))
 
-Last updated: 2025-02-15
+Last updated: 2025-02-20
