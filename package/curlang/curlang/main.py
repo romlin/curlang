@@ -2867,8 +2867,13 @@ def setup_nextjs_project(app_dir: Path) -> bool:
             json.dump(pkg, f, indent=2)
 
         subprocess.run(
-            ["npm", "install", "eslint@^9", "eslint-config-next",
-             "--save-dev"],
+            [
+                "npm",
+                "install",
+                "eslint-config-next",
+                "eslint@^9",
+                "--save-dev"
+            ],
             cwd=str(app_dir),
             check=True,
             stdout=subprocess.DEVNULL,
@@ -2876,19 +2881,18 @@ def setup_nextjs_project(app_dir: Path) -> bool:
         )
 
         subprocess.run(
-            ["npm", "install", "three", "@types/three", "@react-three/fiber"],
+            [
+                "npm",
+                "install",
+                "@react-three/cannon",
+                "@react-three/drei",
+                "@react-three/fiber",
+                "@types/three",
+                "three",
+                "--legacy-peer-deps"
+            ],
             cwd=str(app_dir),
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-
-        subprocess.run(
-            ["npm", "install", "@react-three/drei"],
-            cwd=str(app_dir),
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            check=True
         )
 
         console.print(
@@ -3008,11 +3012,11 @@ def setup_curlang_directory(
             return False, None
 
         if not check_node_and_run_npm_install(web_dir):
-            # cleanup_curlang_dir(curlang_dir)
+            cleanup_curlang_dir(curlang_dir)
             return False, None
 
         if not setup_nextjs_project(app_dir):
-            # cleanup_curlang_dir(curlang_dir)
+            cleanup_curlang_dir(curlang_dir)
             return False, None
 
         for subdir in ["public", "pages"]:
