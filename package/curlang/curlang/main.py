@@ -2293,7 +2293,7 @@ async def curlang_build(directory: Union[str, None], use_euxo: bool = False):
         finally:
             transport.close()
 
-    os.close(master_fd)
+    # os.close(master_fd)
     await process.wait()
 
     try:
@@ -2827,8 +2827,7 @@ def setup_nextjs_project(app_dir: Path) -> bool:
         "npx",
         "create-next-app@latest",
         str(app_dir),
-        "--import-alias",
-        "@/*",
+        "--import-alias", "@/*",
         "--tailwind",
         "--typescript",
         "--no-app",
@@ -2853,32 +2852,31 @@ def setup_nextjs_project(app_dir: Path) -> bool:
                 stderr=subprocess.DEVNULL
             )
 
+        subprocess.run(
+            [
+                "npm",
+                "install",
+                "next@15.1.7",
+                "react@latest",
+                "react-dom@latest"
+            ],
+            cwd=str(app_dir),
+            check=True
+        )
+
         package_json_path = app_dir / "package.json"
 
         with open(package_json_path, "r") as f:
             pkg = json.load(f)
 
-        pkg["dependencies"]["react"] = "^18.2.0"
-        pkg["dependencies"]["react-dom"] = "^18.2.0"
-        pkg["devDependencies"]["@types/react"] = "^18"
-        pkg["devDependencies"]["@types/react-dom"] = "^18"
+        pkg["dependencies"]["next"] = "15.1.7"
+        pkg["dependencies"]["react"] = "^19.0.0"
+        pkg["dependencies"]["react-dom"] = "^19.0.0"
+        pkg["devDependencies"]["@types/react"] = "^19.0.0"
+        pkg["devDependencies"]["@types/react-dom"] = "^19.0.0"
 
         with open(package_json_path, "w") as f:
             json.dump(pkg, f, indent=2)
-
-        subprocess.run(
-            [
-                "npm",
-                "install",
-                "eslint-config-next",
-                "eslint@^9",
-                "--save-dev"
-            ],
-            cwd=str(app_dir),
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
 
         subprocess.run(
             [
@@ -2888,15 +2886,15 @@ def setup_nextjs_project(app_dir: Path) -> bool:
                 "@react-three/drei",
                 "@react-three/fiber",
                 "@types/three",
-                "three",
-                "--legacy-peer-deps"
+                "three"
             ],
             cwd=str(app_dir),
             check=True
         )
 
         console.print(
-            "[bold green]Successfully set up a new Next.js project[/bold green]")
+            "[bold green]Successfully set up a new Next.js project[/bold green]"
+        )
         console.print("")
         return True
 
