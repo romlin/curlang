@@ -1,16 +1,6 @@
 {
   "hooks": [
     {
-      "id": 2,
-      "hook_name": "user_prompt",
-      "hook_placement": "before",
-      "hook_script": "@user_prompt = \"What are the Three Laws of Robotics?\"",
-      "hook_type": "curlang",
-      "expose_to_public_api": false,
-      "show_on_frontpage": true,
-      "created_at": "2025-02-16 19:35:56"
-    },
-    {
       "id": 1,
       "hook_name": "hello_world",
       "hook_placement": "before",
