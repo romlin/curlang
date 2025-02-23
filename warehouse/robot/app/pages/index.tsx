@@ -188,7 +188,7 @@ const RobotArm = memo(
                   </group>
                   <perspectiveCamera
                     ref={forearmCameraRef}
-                    fov={60}
+                    fov={45}
                     aspect={16 / 9}
                     near={0.1}
                     far={100}
