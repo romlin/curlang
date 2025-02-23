@@ -5,12 +5,12 @@ import React, {
     useState,
     forwardRef,
     useImperativeHandle,
-    memo,
+    memo
 } from 'react'
 import Head from 'next/head'
 import {Canvas, useFrame, useThree} from '@react-three/fiber'
 import {OrbitControls, Grid} from '@react-three/drei'
-import {Physics, usePlane} from '@react-three/cannon'
+import {Physics, usePlane, useBox} from '@react-three/cannon'
 import * as THREE from 'three'
 
 interface RobotParts {
@@ -94,8 +94,33 @@ class RobotController {
     }
 }
 
+interface RobotArmProps {
+    clawClosed: boolean
+}
+
+function RobotArmCollider({parentRef}: {
+    parentRef: React.RefObject<THREE.Group>
+}) {
+    const [colliderRef] = useBox(() => ({
+        mass: 0,
+        args: [0.5, 0.3, 0.5],
+        position: [0, 0, 0],
+    }))
+    useFrame(() => {
+        if (parentRef.current && colliderRef.current) {
+            const pos = new THREE.Vector3()
+            parentRef.current.getWorldPosition(pos)
+            colliderRef.current.position.copy(pos)
+            const quat = new THREE.Quaternion()
+            parentRef.current.getWorldQuaternion(quat)
+            colliderRef.current.quaternion.copy(quat)
+        }
+    })
+    return <mesh ref={colliderRef} visible={false}/>
+}
+
 const RobotArm = memo(
-    forwardRef<RobotParts>((_, ref) => {
+    forwardRef<RobotParts, RobotArmProps>(({clawClosed}, ref) => {
         const baseRef = useRef<THREE.Group>(null)
         const shoulderRef = useRef<THREE.Group>(null)
         const upperArmRef = useRef<THREE.Group>(null)
@@ -105,7 +130,6 @@ const RobotArm = memo(
         const pincerClaw1Ref = useRef<THREE.Mesh>(null)
         const pincerClaw2Ref = useRef<THREE.Mesh>(null)
         const forearmCameraRef = useRef<THREE.PerspectiveCamera>(null)
-
         useImperativeHandle(ref, () => ({
             base: baseRef.current!,
             shoulder: shoulderRef.current!,
@@ -117,7 +141,6 @@ const RobotArm = memo(
             pincerClaw2: pincerClaw2Ref.current!,
             camera: forearmCameraRef.current!,
         }))
-
         return (
             <group position={[0, 0.1, 0]}>
                 <group ref={baseRef}>
@@ -125,6 +148,7 @@ const RobotArm = memo(
                         <cylinderGeometry args={[0.2, 0.2, 0.2, 32]}/>
                         <meshNormalMaterial/>
                     </mesh>
+                    <RobotArmCollider parentRef={baseRef}/>
                     <group ref={shoulderRef} position={[0, 0.1, 0]}>
                         <mesh castShadow>
                             <sphereGeometry args={[0.2, 32, 32]}/>
@@ -135,8 +159,10 @@ const RobotArm = memo(
                                 <boxGeometry args={[0.1, 1, 0.1]}/>
                                 <meshNormalMaterial/>
                             </mesh>
-                            <group ref={elbowRef} position={[0, 0.6, 0]}
-                                   rotation={[THREE.MathUtils.degToRad(45), 0, Math.PI / 2]}>
+                            <group
+                                ref={elbowRef}
+                                position={[0, 0.6, 0]}
+                                rotation={[THREE.MathUtils.degToRad(45), 0, Math.PI / 2]}>
                                 <mesh castShadow>
                                     <cylinderGeometry
                                         args={[0.15, 0.15, 0.15, 32]}/>
@@ -154,16 +180,18 @@ const RobotArm = memo(
                                                 args={[0.2, 0.4, 0.05]}/>
                                             <meshNormalMaterial/>
                                         </mesh>
-                                        <mesh ref={pincerClaw1Ref}
-                                              position={[0, 0.175, 0.075]}
-                                              castShadow>
+                                        <mesh
+                                            ref={pincerClaw1Ref}
+                                            position={[0, clawClosed ? 0.05 : 0.175, 0.075]}
+                                            castShadow>
                                             <boxGeometry
                                                 args={[0.2, 0.05, 0.1]}/>
                                             <meshNormalMaterial/>
                                         </mesh>
-                                        <mesh ref={pincerClaw2Ref}
-                                              position={[0, -0.175, 0.075]}
-                                              castShadow>
+                                        <mesh
+                                            ref={pincerClaw2Ref}
+                                            position={[0, clawClosed ? -0.05 : -0.175, 0.075]}
+                                            castShadow>
                                             <boxGeometry
                                                 args={[0.2, 0.05, 0.1]}/>
                                             <meshNormalMaterial/>
@@ -175,14 +203,8 @@ const RobotArm = memo(
                                         aspect={220 / 140}
                                         near={0.1}
                                         far={100}
-                                        position={[1, 0, 0.5]}
-                                        rotation={
-                                            [
-                                                THREE.MathUtils.degToRad(0),
-                                                THREE.MathUtils.degToRad(180),
-                                                THREE.MathUtils.degToRad(90)
-                                            ]
-                                        }
+                                        position={[0.15, 0, 0.25]}
+                                        rotation={[0, Math.PI, Math.PI / 2]}
                                     />
                                 </group>
                             </group>
@@ -196,7 +218,7 @@ const RobotArm = memo(
 RobotArm.displayName = 'RobotArm'
 
 function Floor(props: JSX.IntrinsicElements['mesh']) {
-    const [ref] = usePlane<THREE.Mesh>(() => ({rotation: [-Math.PI / 2, 0, 0], ...props}))
+    const [ref] = usePlane(() => ({rotation: [-Math.PI / 2, 0, 0], ...props}))
     return (
         <mesh ref={ref} receiveShadow>
             <planeGeometry args={[10, 10]}/>
@@ -204,6 +226,76 @@ function Floor(props: JSX.IntrinsicElements['mesh']) {
         </mesh>
     )
 }
+
+function BoxUpdater({
+                        robotRef,
+                        boxRef,
+                        isBoxGrabbed,
+                    }: {
+    robotRef: React.MutableRefObject<RobotParts | null>
+    boxRef: React.MutableRefObject<any>
+    isBoxGrabbed: boolean
+}) {
+    useFrame(() => {
+        if (isBoxGrabbed && robotRef.current && boxRef.current) {
+            const pincer = robotRef.current.pincerBase
+            const pincerWorldPos = new THREE.Vector3()
+            pincer.getWorldPosition(pincerWorldPos)
+            const pincerQuat = new THREE.Quaternion()
+            pincer.getWorldQuaternion(pincerQuat)
+            const offset = new THREE.Vector3(0, 0, 0.3)
+            offset.applyQuaternion(pincerQuat)
+            const newPos = pincerWorldPos.clone().add(offset)
+            boxRef.current.api.position.set(newPos.x, newPos.y, newPos.z)
+            boxRef.current.api.quaternion.set(
+                pincerQuat.x,
+                pincerQuat.y,
+                pincerQuat.z,
+                pincerQuat.w
+            )
+        }
+    })
+    return null
+}
+
+interface InteractiveBoxProps {
+    isBoxGrabbed: boolean
+}
+
+const InteractiveBox = forwardRef<any, InteractiveBoxProps>(
+    ({isBoxGrabbed}, ref) => {
+        const [boxRef, api] = useBox(() => ({
+            mass: 1,
+            position: [1, 0.15, 0],
+            args: [0.3, 0.3, 0.3],
+        }));
+        useImperativeHandle(ref, () => ({mesh: boxRef, api}), [boxRef, api]);
+
+        // Update the body type and mass based on isBoxGrabbed
+        useEffect(() => {
+            if (boxRef.current && boxRef.current.cannonBody) {
+                const body = boxRef.current.cannonBody;
+                if (isBoxGrabbed) {
+                    body.type = 2; // Body.KINEMATIC
+                    body.mass = 0;
+                } else {
+                    body.type = 1; // Body.DYNAMIC
+                    body.mass = 1;
+                }
+                body.updateMassProperties();
+            }
+        }, [isBoxGrabbed]);
+
+        return (
+            <mesh ref={boxRef} castShadow>
+                <boxGeometry args={[0.3, 0.3, 0.3]}/>
+                <meshStandardMaterial
+                    color={isBoxGrabbed ? "red" : "lightgrey"}/>
+            </mesh>
+        );
+    }
+);
+InteractiveBox.displayName = 'InteractiveBox';
 
 function RobotUpdater() {
     useFrame(() => {
@@ -222,8 +314,11 @@ function SceneSetter({setScene}: { setScene: (scene: THREE.Scene) => void }) {
     return null
 }
 
-function ForearmView({scene, robotCamera}: {
-    scene: THREE.Scene;
+function ForearmView({
+                         scene,
+                         robotCamera,
+                     }: {
+    scene: THREE.Scene
     robotCamera: THREE.PerspectiveCamera
 }) {
     const viewRef = useRef<HTMLDivElement>(null)
@@ -245,20 +340,148 @@ function ForearmView({scene, robotCamera}: {
             renderer.dispose()
         }
     }, [scene, robotCamera])
-    return <div ref={viewRef} style={{
-        width: '220px',
-        height: '140px',
-        border: '1px solid white'
-    }}/>
+    return (
+        <div
+            ref={viewRef}
+            style={{
+                width: '220px',
+                height: '140px',
+                border: '1px solid #ffffff'
+            }}
+        />
+    )
+}
+
+function ProcessOutput({
+                           runCommands,
+                       }: {
+    runCommands: (commands: string[]) => void
+}) {
+    const [lastProcessed, setLastProcessed] = useState('')
+    const isInitialLoad = useRef(true)
+    useEffect(() => {
+        const fetchContent = async () => {
+            try {
+                const res = await fetch('/output/output.txt', {cache: 'no-cache'})
+                const text = await res.text()
+                if (isInitialLoad.current) {
+                    isInitialLoad.current = false
+                    setLastProcessed(text)
+                    return
+                }
+                if (text && text.trim() && text !== lastProcessed) {
+                    setLastProcessed(text)
+                    const commands = text
+                        .split(',')
+                        .map(cmd => cmd.trim())
+                        .filter(cmd => cmd)
+                    if (commands.length > 0) {
+                        runCommands(commands)
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching output.txt', error)
+            }
+        }
+        fetchContent()
+        const interval = setInterval(fetchContent, 2000)
+        return () => clearInterval(interval)
+    }, [lastProcessed, runCommands])
+    return null
 }
 
 const Home: NextPage = () => {
     const robotRef = useRef<RobotParts>(null)
+    const boxRef = useRef<any>(null)
     const [demoState, setDemoState] = useState(false)
     const [command, setCommand] = useState('')
+    const [isClawClosed, setIsClawClosed] = useState(false)
+    const [isBoxGrabbed, setIsBoxGrabbed] = useState(false)
     const [forearmCamera, setForearmCamera] = useState<THREE.PerspectiveCamera | null>(null)
     const [scene, setScene] = useState<THREE.Scene | null>(null)
+    const autoRunningRef = useRef(false)
+    const runCommandsSequence = (commands: string[]) => {
+        autoRunningRef.current = true;
+        let index = 0;
+        const executeNext = () => {
+            if (index >= commands.length) {
+                autoRunningRef.current = false;
+                return;
+            }
+            const cmd = commands[index].trim();
 
+            // Check for the "C" command (toggle claw)
+            if (cmd.toLowerCase() === 'c') {
+                setIsClawClosed(prev => {
+                    const newState = !prev;
+                    if (newState && robotRef.current && boxRef.current) {
+                        const pincerPos = new THREE.Vector3();
+                        robotRef.current.pincerBase.getWorldPosition(pincerPos);
+                        const boxPos = new THREE.Vector3();
+                        boxRef.current.mesh.current.getWorldPosition(boxPos);
+                        if (pincerPos.distanceTo(boxPos) < 0.5) {
+                            setIsBoxGrabbed(true);
+                            boxRef.current.api.mass.set(0);
+                        }
+                    } else if (!newState && boxRef.current) {
+                        setIsBoxGrabbed(false);
+                        boxRef.current.api.mass.set(1);
+                    }
+                    return newState;
+                });
+            } else if (cmd.toLowerCase() === 'm') {
+                // Toggle demo mode
+                if (robotControllerRef.current) {
+                    robotControllerRef.current.demoMode = !robotControllerRef.current.demoMode;
+                    setDemoState(robotControllerRef.current.demoMode);
+                }
+            } else {
+                // Process commands for B, S, and E using a regex
+                const match = cmd.match(/^([BSE])([+-]\d+(?:\.\d+)?)$/i);
+                if (match && robotControllerRef.current) {
+                    const part = match[1].toUpperCase();
+                    const deltaRad = THREE.MathUtils.degToRad(parseFloat(match[2]));
+                    switch (part) {
+                        case 'B': {
+                            const currentRotation = robotControllerRef.current.robotParts.base?.rotation.y || 0;
+                            robotControllerRef.current.targetBaseRotation = currentRotation + deltaRad;
+                            robotControllerRef.current.isBaseMoving = true;
+                            break;
+                        }
+                        case 'S': {
+                            const currentRotation = robotControllerRef.current.robotParts.shoulder?.rotation.x || 0;
+                            const newRotation = THREE.MathUtils.clamp(
+                                currentRotation + deltaRad,
+                                robotControllerRef.current.shoulderMin,
+                                robotControllerRef.current.shoulderMax
+                            );
+                            robotControllerRef.current.targetShoulderRotation = newRotation;
+                            robotControllerRef.current.isShoulderMoving = true;
+                            break;
+                        }
+                        case 'E': {
+                            const currentRotation = robotControllerRef.current.robotParts.elbow?.rotation.x || 0;
+                            const newRotation = THREE.MathUtils.clamp(
+                                currentRotation + deltaRad,
+                                robotControllerRef.current.elbowMin,
+                                robotControllerRef.current.elbowMax
+                            );
+                            robotControllerRef.current.targetElbowRotation = newRotation;
+                            robotControllerRef.current.isElbowMoving = true;
+                            break;
+                        }
+                        default:
+                            console.log('Invalid command: ' + cmd);
+                    }
+                } else {
+                    console.log('Invalid command format: ' + cmd);
+                }
+            }
+            index++;
+            setTimeout(executeNext, 500);
+        };
+        executeNext();
+    };
     useEffect(() => {
         const interval = setInterval(() => {
             if (robotRef.current && robotRef.current.camera) {
@@ -268,7 +491,6 @@ const Home: NextPage = () => {
         }, 100)
         return () => clearInterval(interval)
     }, [])
-
     useEffect(() => {
         let active = true
 
@@ -286,14 +508,34 @@ const Home: NextPage = () => {
             active = false
         }
     }, [])
-
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (autoRunningRef.current) return
             if (!robotControllerRef.current) return
             const key = e.key.toLowerCase()
             if (key === 'm') {
                 robotControllerRef.current.demoMode = !robotControllerRef.current.demoMode
                 setDemoState(robotControllerRef.current.demoMode)
+                return
+            }
+            if (key === 'c') {
+                setIsClawClosed(prev => {
+                    const newState = !prev
+                    if (newState && robotRef.current && boxRef.current) {
+                        const pincerPos = new THREE.Vector3()
+                        robotRef.current.pincerBase.getWorldPosition(pincerPos)
+                        const boxPos = new THREE.Vector3()
+                        boxRef.current.mesh.current.getWorldPosition(boxPos)
+                        if (pincerPos.distanceTo(boxPos) < 0.5) {
+                            setIsBoxGrabbed(true)
+                            boxRef.current.api.mass.set(0)
+                        }
+                    } else if (!newState && boxRef.current) {
+                        setIsBoxGrabbed(false)
+                        boxRef.current.api.mass.set(1)
+                    }
+                    return newState
+                })
                 return
             }
             if (robotControllerRef.current.demoMode) return
@@ -322,28 +564,25 @@ const Home: NextPage = () => {
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [])
-
-    // Updated: handleCommandSubmit no longer receives FormEvent,
-    // and we call it from a button click instead of onSubmit in a form.
-    const handleCommandSubmit = () => {
+    }, [isBoxGrabbed])
+    const handleCommandSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault()
+        if (autoRunningRef.current) return
         if (!robotControllerRef.current) return
         const cmd = command.trim()
         const match = cmd.match(/^([BSE])([+-]\d+(?:\.\d+)?)$/i)
-
         if (match) {
             const part = match[1].toUpperCase()
             const deltaRad = THREE.MathUtils.degToRad(parseFloat(match[2]))
             switch (part) {
                 case 'B': {
-                    robotControllerRef.current.targetBaseRotation =
-                        robotControllerRef.current.robotParts.base!.rotation.y + deltaRad
+                    const currentRotation = robotControllerRef.current.robotParts.base?.rotation.y || 0
+                    robotControllerRef.current.targetBaseRotation = currentRotation + deltaRad
                     robotControllerRef.current.isBaseMoving = true
                     break
                 }
                 case 'S': {
-                    const currentRotation =
-                        robotControllerRef.current.robotParts.shoulder!.rotation.x
+                    const currentRotation = robotControllerRef.current.robotParts.shoulder?.rotation.x || 0
                     const newRotation = THREE.MathUtils.clamp(
                         currentRotation + deltaRad,
                         robotControllerRef.current.shoulderMin,
@@ -354,8 +593,7 @@ const Home: NextPage = () => {
                     break
                 }
                 case 'E': {
-                    const currentRotation =
-                        robotControllerRef.current.robotParts.elbow!.rotation.x
+                    const currentRotation = robotControllerRef.current.robotParts.elbow?.rotation.x || 0
                     const newRotation = THREE.MathUtils.clamp(
                         currentRotation + deltaRad,
                         robotControllerRef.current.elbowMin,
@@ -365,83 +603,131 @@ const Home: NextPage = () => {
                     robotControllerRef.current.isElbowMoving = true
                     break
                 }
+                default:
+                    console.log('Invalid command: ' + cmd)
             }
         } else if (cmd.toLowerCase() === 'm') {
             robotControllerRef.current.demoMode = !robotControllerRef.current.demoMode
             setDemoState(robotControllerRef.current.demoMode)
+        } else if (cmd.toLowerCase() === 'c') {
+            setIsClawClosed(prev => {
+                const newState = !prev
+                if (newState && robotRef.current && boxRef.current) {
+                    const pincerPos = new THREE.Vector3()
+                    robotRef.current.pincerBase.getWorldPosition(pincerPos)
+                    const boxPos = new THREE.Vector3()
+                    boxRef.current.mesh.current.getWorldPosition(boxPos)
+                    if (pincerPos.distanceTo(boxPos) < 0.5) {
+                        setIsBoxGrabbed(true)
+                        boxRef.current.api.mass.set(0)
+                    }
+                } else if (!newState && boxRef.current) {
+                    setIsBoxGrabbed(false)
+                    boxRef.current.api.mass.set(1)
+                }
+                return newState
+            })
         } else {
             console.log('Invalid command: ' + cmd)
         }
         setCommand('')
     }
-
     return (
         <>
             <Head>
-                <title>Robot Arm with Forearm View</title>
+                <title>Robot Arm with Forearm View and Interactive Box</title>
                 <meta charSet="UTF-8"/>
                 <meta name="viewport"
                       content="width=device-width, initial-scale=1.0"/>
+                <style>{`
+          body, html { margin: 0; padding: 0; width: 100%; height: 100%; }
+          canvas { display: block; }
+          #instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            line-height: 1.5;
+            font-size: 12px;
+          }
+          #instructions ul { margin: 0; }
+          #instructions li { margin-bottom: 5px; }
+          #commandForm {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+          }
+          #commandForm input {
+            padding: 10px;
+            font-size: 12px;
+            width: 300px;
+            border: 0px;
+            border-radius: 0px;
+            color: #000;
+            background: #ffffff;
+          }
+          #forearmViewContainer {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 20;
+            background: #000;
+          }
+        `}</style>
             </Head>
-
             <div id="instructions">
                 <ul>
                     <li><strong>Q/E:</strong> Rotate Base</li>
                     <li><strong>W/S:</strong> Move Shoulder</li>
                     <li><strong>R/F:</strong> Move Elbow</li>
                     <li><strong>M:</strong> Demo Mode
-                        (Current: {demoState ? 'ON' : 'OFF'})
+                        ({demoState ? 'ON' : 'OFF'})
+                    </li>
+                    <li><strong>C:</strong> Claw (pick up/release)
                     </li>
                 </ul>
             </div>
-
-            <Canvas
-                shadows
-                camera={{position: [2, 1, 5], fov: 75}}
-                style={{width: '100vw', height: '100vh'}}
-            >
+            <Canvas shadows camera={{position: [2, 1, 5], fov: 75}}
+                    style={{width: '100vw', height: '100vh'}}>
                 <SceneSetter setScene={setScene}/>
                 <color attach="background" args={['#000']}/>
                 <ambientLight intensity={0.4}/>
-                <directionalLight
-                    position={[0, 10, 10]}
-                    intensity={0.5}
-                    castShadow
-                    shadow-mapSize-width={1024}
-                    shadow-mapSize-height={1024}
-                />
+                <directionalLight position={[0, 10, 10]} intensity={0.5}
+                                  castShadow shadow-mapSize-width={1024}
+                                  shadow-mapSize-height={1024}/>
                 <OrbitControls maxPolarAngle={Math.PI / 2 - 0.1}
                                minPolarAngle={0}/>
-                <Grid
-                    position={[0, 0.01, 0]}
-                    args={[10, 10]}
-                    cellColor="#bbbbbb"
-                    sectionColor="#dddddd"
-                    cellSize={1}
-                    sectionSize={10}
-                />
+                <Grid position={[0, 0.001, 0]} args={[10, 10]}
+                      cellColor="#bbbbbb" sectionColor="#dddddd" cellSize={1}
+                      sectionSize={10}/>
                 <Physics gravity={[0, -9.82, 0]}>
                     <RobotUpdater/>
-                    <RobotArm ref={robotRef}/>
+                    <BoxUpdater robotRef={robotRef} boxRef={boxRef}
+                                isBoxGrabbed={isBoxGrabbed}/>
+                    <RobotArm ref={robotRef} clawClosed={isClawClosed}/>
+                    <InteractiveBox ref={boxRef} isBoxGrabbed={isBoxGrabbed}/>
                     <Floor/>
                 </Physics>
             </Canvas>
-
             <div id="forearmViewContainer">
-                {scene && forearmCamera && (
-                    <ForearmView scene={scene} robotCamera={forearmCamera}/>
-                )}
+                {scene && forearmCamera &&
+                    <ForearmView scene={scene} robotCamera={forearmCamera}/>}
             </div>
-
             <div id="commandForm">
-                <input
-                    type="text"
-                    value={command}
-                    onChange={(e) => setCommand(e.target.value)}
-                    placeholder="Enter command, e.g. B+30, S-15, E+20, or M"
-                />
-                <button onClick={handleCommandSubmit}>Send</button>
+                <form onSubmit={handleCommandSubmit}>
+                    <input
+                        type="text"
+                        value={command}
+                        onChange={(e) => setCommand(e.target.value)}
+                        placeholder="Enter command, e.g. B+30, S-15, E+20, M, or C"
+                    />
+                </form>
             </div>
+            <ProcessOutput runCommands={runCommandsSequence}/>
         </>
     )
 }
