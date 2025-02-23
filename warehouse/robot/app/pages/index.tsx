@@ -370,10 +370,11 @@ function ForearmView({ scene, robotCamera }: { scene: THREE.Scene; robotCamera: 
         onClick={handleSnapshot}
         style={{
           position: 'absolute',
-          bottom: '5px',
-          right: '5px',
-          padding: '2px 5px',
-          fontSize: '10px',
+          bottom: '10px',
+          right: '10px',
+          padding: '0px',
+          fontSize: '12px',
+          lineHeight: '1',
           cursor: 'pointer',
           zIndex: 1,
         }}
