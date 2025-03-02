@@ -356,6 +356,14 @@ class DatabaseManager:
         )
         return lastrowid or -1
 
+    def delete_schedule(self, schedule_id: int) -> bool:
+        """Delete a schedule entry by ID."""
+        _, rowcount = self._execute(
+            "DELETE FROM curlang_schedule WHERE id = ?",
+            (schedule_id,)
+        )
+        return rowcount > 0
+
     def get_all_schedules(self) -> List[Dict[str, Any]]:
         """Retrieve all schedules with parsed datetime information."""
         schedules = self._fetch(

@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="curlang",
-    version="0.0.8",
+    version="0.0.9",
     license="Apache-2.0",
     packages=find_packages(),
     package_data={
@@ -17,8 +17,8 @@ setup(
         "aiofiles==24.1.0",
         "beautifulsoup4==4.13.3",
         "croniter==6.0.0",
-        "cryptography==44.0.1",
-        "fastapi==0.115.8",
+        "cryptography==44.0.2",
+        "fastapi==0.115.11",
         "hnswlib==0.8.0",
         "httpx==0.28.1",
         "itsdangerous==2.2.0",
@@ -26,7 +26,7 @@ setup(
         "ngrok==1.4.0",
         "psutil==7.0.0",
         "pydantic==2.10.6",
-        "pypdf==5.3.0",
+        "pypdf==5.3.1",
         "python-multipart==0.0.20",
         "requests==2.32.3",
         "rich==13.9.4",

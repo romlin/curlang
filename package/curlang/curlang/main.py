@@ -1199,7 +1199,6 @@ def create_temp_sh(
                         "os.setsid",
                         "os.setuid",
                         "os.symlink",
-                        "os.system",
                         "platform.os",
                         "platform.popen",
                         "platform.processor",
