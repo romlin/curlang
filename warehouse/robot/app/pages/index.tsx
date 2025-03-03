@@ -1,126 +1,153 @@
-import { NextPage } from 'next'
-import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle, memo } from 'react'
-import Head from 'next/head'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { OrbitControls, Grid } from '@react-three/drei'
-import { Physics, usePlane, useBox } from '@react-three/cannon'
-import * as THREE from 'three'
+"use client";
+import { NextPage } from "next";
+import React, { useEffect, useRef, useState, forwardRef, memo, useImperativeHandle } from "react";
+import Head from "next/head";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { OrbitControls, Grid } from "@react-three/drei";
+import { Physics, usePlane, useBox } from "@react-three/cannon";
+import * as THREE from "three";
 
 interface RobotParts {
-  base?: THREE.Object3D
-  shoulder?: THREE.Object3D
-  upperArm?: THREE.Object3D
-  elbow?: THREE.Object3D
-  forearm?: THREE.Object3D
-  pincerBase?: THREE.Object3D
-  pincerClaw1?: THREE.Object3D
-  pincerClaw2?: THREE.Object3D
-  camera?: THREE.PerspectiveCamera
+  base?: THREE.Object3D;
+  shoulder?: THREE.Object3D;
+  upperArm?: THREE.Object3D;
+  elbow?: THREE.Object3D;
+  forearm?: THREE.Object3D;
+  pincerBase?: THREE.Object3D;
+  pincerClaw1?: THREE.Object3D;
+  pincerClaw2?: THREE.Object3D;
+  camera?: THREE.PerspectiveCamera;
 }
 
 class RobotController {
-  robotParts: RobotParts
-  demoMode = false
-  targetBaseRotation = 0
-  targetShoulderRotation = 0
-  targetElbowRotation = 0
-  isBaseMoving = false
-  isShoulderMoving = false
-  isElbowMoving = false
-  ROT_SPEED = 0.1
-  LERP_FACTOR = 0.05
-  shoulderMin = THREE.MathUtils.degToRad(0)
-  shoulderMax = THREE.MathUtils.degToRad(45)
-  elbowMin = THREE.MathUtils.degToRad(-90)
-  elbowMax = THREE.MathUtils.degToRad(45)
-
+  robotParts: RobotParts;
+  demoMode = false;
+  commandQueue: { part: string; target: number }[] = [];
+  isMoving = false;
+  ROT_SPEED = THREE.MathUtils.degToRad(150) / 60;
+  LERP_FACTOR = 0.1;
+  shoulderMin = THREE.MathUtils.degToRad(0);
+  shoulderMax = THREE.MathUtils.degToRad(45);
+  elbowMin = THREE.MathUtils.degToRad(-90);
+  elbowMax = THREE.MathUtils.degToRad(45);
   constructor(robotParts: RobotParts) {
-    this.robotParts = robotParts
+    this.robotParts = robotParts;
   }
-
   rotateBase(direction: number) {
-    if (!this.robotParts.base) return
-    this.robotParts.base.rotation.y += this.ROT_SPEED * direction
+    if (!this.robotParts.base) return;
+    this.robotParts.base.rotation.y += this.ROT_SPEED * direction;
   }
-
   moveShoulder(direction: number) {
-    if (!this.robotParts.shoulder) return
-    const delta = this.ROT_SPEED * direction
+    if (!this.robotParts.shoulder) return;
+    const delta = this.ROT_SPEED * direction;
     this.robotParts.shoulder.rotation.x = THREE.MathUtils.clamp(
       this.robotParts.shoulder.rotation.x + delta,
       this.shoulderMin,
       this.shoulderMax
-    )
+    );
   }
-
   moveElbow(direction: number) {
-    if (!this.robotParts.elbow) return
-    const delta = this.ROT_SPEED * direction
+    if (!this.robotParts.elbow) return;
+    const delta = this.ROT_SPEED * direction;
     this.robotParts.elbow.rotation.x = THREE.MathUtils.clamp(
       this.robotParts.elbow.rotation.x + delta,
       this.elbowMin,
       this.elbowMax
-    )
+    );
   }
-
+  resetToStart() {
+    if (this.robotParts.base) this.robotParts.base.rotation.y = 0;
+    if (this.robotParts.shoulder) this.robotParts.shoulder.rotation.x = 0;
+    if (this.robotParts.elbow)
+      this.robotParts.elbow.rotation.x = THREE.MathUtils.degToRad(45);
+    this.commandQueue = [];
+    this.isMoving = false;
+  }
+  addCommand(part: string, deltaRad: number) {
+    const { base, shoulder, elbow } = this.robotParts;
+    let target = 0;
+    switch (part) {
+      case "B":
+        if (base) target = base.rotation.y + deltaRad;
+        break;
+      case "S":
+        if (shoulder) {
+          target = THREE.MathUtils.clamp(
+            shoulder.rotation.x + deltaRad,
+            this.shoulderMin,
+            this.shoulderMax
+          );
+        }
+        break;
+      case "E":
+        if (elbow) {
+          target = THREE.MathUtils.clamp(
+            elbow.rotation.x + deltaRad,
+            this.elbowMin,
+            this.elbowMax
+          );
+        }
+        break;
+    }
+    this.commandQueue.push({ part, target });
+  }
   update() {
-    const { base, shoulder, elbow } = this.robotParts
-    if (this.isBaseMoving && base) {
-      base.rotation.y += (this.targetBaseRotation - base.rotation.y) * this.LERP_FACTOR
-      if (Math.abs(base.rotation.y - this.targetBaseRotation) < 0.01) {
-        this.isBaseMoving = false
+    const { base, shoulder, elbow } = this.robotParts;
+    if (this.demoMode) {
+      this.rotateBase(1);
+      return;
+    }
+    if (!this.isMoving && this.commandQueue.length > 0) {
+      this.isMoving = true;
+    }
+    if (this.isMoving && this.commandQueue.length > 0) {
+      const { part, target } = this.commandQueue[0];
+      let currentRotation = 0;
+      let partRef: THREE.Object3D | undefined;
+      switch (part) {
+        case "B":
+          partRef = base;
+          currentRotation = base?.rotation.y || 0;
+          break;
+        case "S":
+          partRef = shoulder;
+          currentRotation = shoulder?.rotation.x || 0;
+          break;
+        case "E":
+          partRef = elbow;
+          currentRotation = elbow?.rotation.x || 0;
+          break;
+      }
+      if (partRef) {
+        const delta = (target - currentRotation) * this.LERP_FACTOR;
+        const newRotation = currentRotation + delta;
+        if (part === "B") partRef.rotation.y = newRotation;
+        else partRef.rotation.x = newRotation;
+        if (Math.abs(newRotation - target) < 0.01) {
+          this.commandQueue.shift();
+          this.isMoving = false;
+        }
       }
     }
-    if (this.isShoulderMoving && shoulder) {
-      shoulder.rotation.x += (this.targetShoulderRotation - shoulder.rotation.x) * this.LERP_FACTOR
-      if (Math.abs(shoulder.rotation.x - this.targetShoulderRotation) < 0.01) {
-        this.isShoulderMoving = false
-      }
-    }
-    if (this.isElbowMoving && elbow) {
-      elbow.rotation.x += (this.targetElbowRotation - elbow.rotation.x) * this.LERP_FACTOR
-      if (Math.abs(elbow.rotation.x - this.targetElbowRotation) < 0.01) {
-        this.isElbowMoving = false
-      }
-    }
-    if (this.demoMode) this.rotateBase(1)
   }
 }
 
 interface RobotArmProps {
-  clawClosed: boolean
-}
-
-function RobotArmCollider({ parentRef }: { parentRef: React.RefObject<THREE.Group> }) {
-  const [colliderRef] = useBox(() => ({
-    mass: 0,
-    args: [0.5, 0.3, 0.5],
-    position: [0, 0, 0],
-  }))
-  useFrame(() => {
-    if (parentRef.current && colliderRef.current) {
-      const pos = new THREE.Vector3()
-      parentRef.current.getWorldPosition(pos)
-      colliderRef.current.position.copy(pos)
-      const quat = new THREE.Quaternion()
-      parentRef.current.getWorldQuaternion(quat)
-      colliderRef.current.quaternion.copy(quat)
-    }
-  })
-  return <mesh ref={colliderRef} visible={false} />
+  position?: [number, number, number];
 }
 
 const RobotArm = memo(
-  forwardRef<RobotParts, RobotArmProps>(({ clawClosed }, ref) => {
-    const baseRef = useRef<THREE.Group>(null)
-    const shoulderRef = useRef<THREE.Group>(null)
-    const upperArmRef = useRef<THREE.Group>(null)
-    const elbowRef = useRef<THREE.Group>(null)
-    const forearmRef = useRef<THREE.Group>(null)
-    const pincerBaseRef = useRef<THREE.Group>(null)
-    const pincerClaw1Ref = useRef<THREE.Mesh>(null)
-    const pincerClaw2Ref = useRef<THREE.Mesh>(null)
-    const forearmCameraRef = useRef<THREE.PerspectiveCamera>(null)
+  forwardRef<RobotParts, RobotArmProps>((props, ref) => {
+    const { position = [0, 0.1, 0] } = props;
+    const baseRef = useRef<THREE.Group>(null);
+    const shoulderRef = useRef<THREE.Group>(null);
+    const upperArmRef = useRef<THREE.Group>(null);
+    const elbowRef = useRef<THREE.Group>(null);
+    const forearmRef = useRef<THREE.Group>(null);
+    const pincerBaseRef = useRef<THREE.Group>(null);
+    const pincerClaw1Ref = useRef<THREE.Mesh>(null);
+    const pincerClaw2Ref = useRef<THREE.Mesh>(null);
+    const forearmCameraRef = useRef<THREE.PerspectiveCamera>(null);
     useImperativeHandle(ref, () => ({
       base: baseRef.current!,
       shoulder: shoulderRef.current!,
@@ -131,15 +158,14 @@ const RobotArm = memo(
       pincerClaw1: pincerClaw1Ref.current!,
       pincerClaw2: pincerClaw2Ref.current!,
       camera: forearmCameraRef.current!,
-    }))
+    }));
     return (
-      <group position={[0, 0.1, 0]}>
+      <group position={position}>
         <group ref={baseRef}>
           <mesh castShadow>
             <cylinderGeometry args={[0.2, 0.2, 0.2, 32]} />
             <meshNormalMaterial />
           </mesh>
-          <RobotArmCollider parentRef={baseRef} />
           <group ref={shoulderRef} position={[0, 0.1, 0]}>
             <mesh castShadow>
               <sphereGeometry args={[0.2, 32, 32]} />
@@ -169,31 +195,27 @@ const RobotArm = memo(
                       <boxGeometry args={[0.2, 0.4, 0.05]} />
                       <meshNormalMaterial />
                     </mesh>
-                    <mesh
-                      ref={pincerClaw1Ref}
-                      position={[0, clawClosed ? 0.05 : 0.175, 0.075]}
-                      castShadow
-                    >
+                    <mesh ref={pincerClaw1Ref} position={[0, 0.175, 0.075]} castShadow>
                       <boxGeometry args={[0.2, 0.05, 0.1]} />
                       <meshNormalMaterial />
                     </mesh>
-                    <mesh
-                      ref={pincerClaw2Ref}
-                      position={[0, clawClosed ? -0.05 : -0.175, 0.075]}
-                      castShadow
-                    >
+                    <mesh ref={pincerClaw2Ref} position={[0, -0.175, 0.075]} castShadow>
                       <boxGeometry args={[0.2, 0.05, 0.1]} />
                       <meshNormalMaterial />
                     </mesh>
                   </group>
                   <perspectiveCamera
                     ref={forearmCameraRef}
-                    fov={45}
+                    fov={60}
                     aspect={16 / 9}
                     near={0.1}
                     far={100}
-                    position={[0.15, 0, 0.25]}
-                    rotation={[0, Math.PI, Math.PI / 2]}
+                    position={[0, 0, 0.45]}
+                    rotation={[
+                      THREE.MathUtils.degToRad(0),
+                      THREE.MathUtils.degToRad(180),
+                      THREE.MathUtils.degToRad(90),
+                    ]}
                   />
                 </group>
               </group>
@@ -201,564 +223,323 @@ const RobotArm = memo(
           </group>
         </group>
       </group>
-    )
+    );
   })
-)
-RobotArm.displayName = 'RobotArm'
+);
 
-function Floor(props: JSX.IntrinsicElements['mesh']) {
-  const [ref] = usePlane(() => ({ rotation: [-Math.PI / 2, 0, 0], ...props }))
+RobotArm.displayName = "RobotArm";
+
+const Floor: React.FC<{ position?: [number, number, number] }> = ({ position }) => {
+  const [ref] = usePlane<THREE.Mesh>(() => ({
+    rotation: [-Math.PI / 2, 0, 0],
+    position,
+  }));
   return (
-    <mesh ref={ref} receiveShadow>
+    <mesh ref={ref as React.Ref<THREE.Mesh>} receiveShadow>
       <planeGeometry args={[10, 10]} />
       <meshStandardMaterial color="#808080" side={THREE.DoubleSide} />
     </mesh>
-  )
+  );
+};
+
+interface ColoredBoxProps {
+  position: [number, number, number];
+  color: string;
 }
 
-interface BoxAPI {
-  position: {
-    set: (x: number, y: number, z: number) => void
-  }
-  quaternion: {
-    set: (x: number, y: number, z: number, w: number) => void
-  }
-  mass: {
-    set: (mass: number) => void
-  }
-}
-
-interface BoxRef {
-  mesh: React.RefObject<THREE.Mesh>
-  api: BoxAPI
-}
-
-function BoxUpdater({
-  robotRef,
-  boxRef,
-  isBoxGrabbed,
-}: {
-  robotRef: React.MutableRefObject<RobotParts | null>
-  boxRef: React.MutableRefObject<BoxRef | null>
-  isBoxGrabbed: boolean
-}) {
-  useFrame(() => {
-    if (isBoxGrabbed && robotRef.current && boxRef.current) {
-      const pincer = robotRef.current.pincerBase
-      const pincerWorldPos = new THREE.Vector3()
-      pincer.getWorldPosition(pincerWorldPos)
-      const pincerQuat = new THREE.Quaternion()
-      pincer.getWorldQuaternion(pincerQuat)
-      const offset = new THREE.Vector3(0, 0, 0.3)
-      offset.applyQuaternion(pincerQuat)
-      const newPos = pincerWorldPos.clone().add(offset)
-      boxRef.current.api.position.set(newPos.x, newPos.y, newPos.z)
-      boxRef.current.api.quaternion.set(pincerQuat.x, pincerQuat.y, pincerQuat.z, pincerQuat.w)
-    }
-  })
-  return null
-}
-
-interface InteractiveBoxProps {
-  isBoxGrabbed: boolean
-}
-
-const InteractiveBox = forwardRef<BoxRef, InteractiveBoxProps>(({ isBoxGrabbed }, ref) => {
-  const [boxRef, api] = useBox(() => ({
-    mass: 1,
-    position: [1, 0.15, 0],
-    args: [0.3, 0.3, 0.3],
-  }))
-  useImperativeHandle(ref, () => ({ mesh: boxRef, api }), [boxRef, api])
-  useEffect(() => {
-    if (boxRef.current && boxRef.current.cannonBody) {
-      const body = boxRef.current.cannonBody
-      if (isBoxGrabbed) {
-        body.type = 2
-        body.mass = 0
-      } else {
-        body.type = 1
-        body.mass = 1
-      }
-      body.updateMassProperties()
-    }
-  }, [isBoxGrabbed, boxRef])
+const ColoredBox: React.FC<ColoredBoxProps> = ({ position, color }) => {
+  const [ref] = useBox<THREE.Mesh>(() => ({
+    mass: 0,
+    position,
+    args: [0.2, 0.2, 0.2],
+  }));
   return (
-    <mesh ref={boxRef} castShadow>
-      <boxGeometry args={[0.3, 0.3, 0.3]} />
-      <meshStandardMaterial color={isBoxGrabbed ? 'red' : 'lightgrey'} />
+    <mesh ref={ref} castShadow receiveShadow>
+      <boxGeometry args={[0.2, 0.2, 0.2]} />
+      <meshStandardMaterial color={color} />
     </mesh>
-  )
-})
-InteractiveBox.displayName = 'InteractiveBox'
+  );
+};
 
-function RobotUpdater() {
+const RobotUpdater: React.FC<{
+  controllerRef: React.MutableRefObject<RobotController | null>;
+}> = ({ controllerRef }) => {
   useFrame(() => {
-    if (robotControllerRef.current) robotControllerRef.current.update()
-  })
-  return null
-}
+    if (controllerRef.current) controllerRef.current.update();
+  });
+  return null;
+};
 
-const robotControllerRef = { current: null as RobotController | null }
-
-function SceneSetter({ setScene }: { setScene: (scene: THREE.Scene) => void }) {
-  const { scene } = useThree()
+const SceneSetter: React.FC<{ setScene: (scene: THREE.Scene) => void }> = ({ setScene }) => {
+  const { scene } = useThree();
   useEffect(() => {
-    setScene(scene)
-  }, [scene, setScene])
-  return null
-}
+    setScene(scene);
+  }, [scene, setScene]);
+  return null;
+};
 
-function ForearmView({ scene, robotCamera }: { scene: THREE.Scene; robotCamera: THREE.PerspectiveCamera }) {
-  const viewRef = useRef<HTMLDivElement>(null)
-  const rendererRef = useRef<THREE.WebGLRenderer>()
-  const handleSnapshot = () => {
-    if (scene && robotCamera) {
-      robotCamera.updateMatrixWorld(true)
-      scene.updateMatrixWorld(true)
-      const baseWidth = 160
-      const baseHeight = 90
-      const captureWidth = baseWidth * 4
-      const captureHeight = baseHeight * 4
-      const tempRenderer = new THREE.WebGLRenderer({
-        antialias: true,
-        preserveDrawingBuffer: true,
-      })
-      tempRenderer.setSize(captureWidth, captureHeight)
-      tempRenderer.setClearColor(0x000000)
-      tempRenderer.render(scene, robotCamera)
-      const dataURL = tempRenderer.domElement.toDataURL('image/png')
-      const link = document.createElement('a')
-      link.href = dataURL
-      link.download = 'snapshot.png'
-      link.click()
-      tempRenderer.dispose()
-    }
-  }
+const ForearmView: React.FC<{
+  scene: THREE.Scene;
+  robotCamera: THREE.PerspectiveCamera;
+}> = ({ scene, robotCamera }) => {
+  const viewRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   useEffect(() => {
-    if (!viewRef.current) return
-    viewRef.current.innerHTML = ''
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      preserveDrawingBuffer: true,
-    })
-    renderer.setSize(160, 90)
-    renderer.setClearColor(0x000000)
-    viewRef.current.appendChild(renderer.domElement)
-    rendererRef.current = renderer
+    if (!viewRef.current) return;
+    viewRef.current.innerHTML = "";
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(208, 117);
+    renderer.setClearColor(0x000000);
+    renderer.shadowMap.enabled = true;
+    viewRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
     const animate = () => {
-      renderer.render(scene, robotCamera)
-      requestAnimationFrame(animate)
-    }
-    animate()
+      renderer.render(scene, robotCamera);
+      requestAnimationFrame(animate);
+    };
+    animate();
     return () => {
-      renderer.dispose()
-    }
-  }, [scene, robotCamera])
-  return (
-    <div
-      style={{
-        width: '162px',
-        height: '92px',
-        position: 'relative',
-        border: '1px solid #ffffff',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div ref={viewRef} style={{ width: '100%', height: '100%' }} />
-      <button
-        onClick={handleSnapshot}
-        style={{
-          position: 'absolute',
-          bottom: '10px',
-          right: '10px',
-          padding: '0px',
-          fontSize: '12px',
-          lineHeight: '1',
-          cursor: 'pointer',
-          zIndex: 1,
-        }}
-      >
-        Snapshot
-      </button>
-    </div>
-  )
-}
-
-function ProcessOutput({ runCommands }: { runCommands: (commands: string[]) => void }) {
-  const [lastProcessed, setLastProcessed] = useState('')
-  const isInitialLoad = useRef(true)
-  useEffect(() => {
-    const fetchContent = async () => {
-      try {
-        const res = await fetch('/output/output.txt', { cache: 'no-cache' })
-        const text = await res.text()
-        if (isInitialLoad.current) {
-          isInitialLoad.current = false
-          setLastProcessed(text)
-          return
-        }
-        if (text && text.trim() && text !== lastProcessed) {
-          setLastProcessed(text)
-          const commands = text
-            .split(',')
-            .map((cmd) => cmd.trim())
-            .filter((cmd) => cmd)
-          if (commands.length > 0) {
-            runCommands(commands)
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching output.txt', error)
-      }
-    }
-    fetchContent()
-    const interval = setInterval(fetchContent, 2000)
-    return () => clearInterval(interval)
-  }, [lastProcessed, runCommands])
-  return null
-}
+      renderer.dispose();
+    };
+  }, [scene, robotCamera]);
+  return <div ref={viewRef} style={{ width: "100%", height: "100%" }} />;
+};
 
 const Home: NextPage = () => {
-  const robotRef = useRef<RobotParts>(null)
-  const boxRef = useRef<BoxRef | null>(null)
-  const [demoState, setDemoState] = useState(false)
-  const [command, setCommand] = useState('')
-  const [isClawClosed, setIsClawClosed] = useState(false)
-  const [isBoxGrabbed, setIsBoxGrabbed] = useState(false)
-  const [forearmCamera, setForearmCamera] = useState<THREE.PerspectiveCamera | null>(null)
-  const [scene, setScene] = useState<THREE.Scene | null>(null)
-  const autoRunningRef = useRef(false)
-
-  const runCommandsSequence = (commands: string[]) => {
-    autoRunningRef.current = true
-    let index = 0
-    const executeNext = () => {
-      if (index >= commands.length) {
-        autoRunningRef.current = false
-        return
-      }
-      const cmd = commands[index].trim()
-      if (cmd.toLowerCase() === 'c') {
-        setIsClawClosed((prev) => {
-          const newState = !prev
-          if (newState && robotRef.current && boxRef.current) {
-            const pincerPos = new THREE.Vector3()
-            robotRef.current.pincerBase.getWorldPosition(pincerPos)
-            const boxPos = new THREE.Vector3()
-            boxRef.current.mesh.current.getWorldPosition(boxPos)
-            if (pincerPos.distanceTo(boxPos) < 0.5) {
-              setIsBoxGrabbed(true)
-              boxRef.current.api.mass.set(0)
-            }
-          } else if (!newState && boxRef.current) {
-            setIsBoxGrabbed(false)
-            boxRef.current.api.mass.set(1)
-          }
-          return newState
-        })
-      } else if (cmd.toLowerCase() === 'm') {
-        if (robotControllerRef.current) {
-          robotControllerRef.current.demoMode = !robotControllerRef.current.demoMode
-          setDemoState(robotControllerRef.current.demoMode)
+  const [isClient, setIsClient] = useState(false);
+  const [lastContent, setLastContent] = useState<string>("");
+  const robotRef = useRef<RobotParts>(null);
+  const [demoState, setDemoState] = useState(false);
+  const [command, setCommand] = useState("");
+  const [forearmCamera, setForearmCamera] = useState<THREE.PerspectiveCamera | null>(null);
+  const [scene, setScene] = useState<THREE.Scene | null>(null);
+  const robotControllerRef = useRef<RobotController | null>(null);
+  const initialLoadRef = useRef(true);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  useEffect(() => {
+    const fetchAndProcessFile = async () => {
+      try {
+        const response = await fetch("/output/output.txt");
+        const text = await response.text();
+        if (initialLoadRef.current) {
+          initialLoadRef.current = false;
+          setLastContent(text);
+          return;
         }
-      } else {
-        const match = cmd.match(/^([BSE])([+-]\d+(?:\.\d+)?)$/i)
-        if (match && robotControllerRef.current) {
-          const part = match[1].toUpperCase()
-          const deltaRad = THREE.MathUtils.degToRad(parseFloat(match[2]))
-          switch (part) {
-            case 'B': {
-              const currentRotation = robotControllerRef.current.robotParts.base?.rotation.y || 0
-              robotControllerRef.current.targetBaseRotation = currentRotation + deltaRad
-              robotControllerRef.current.isBaseMoving = true
-              break
+        if (text !== lastContent && robotControllerRef.current) {
+          const controller = robotControllerRef.current;
+          controller.resetToStart();
+          const commands = text.split(", ").map((cmd) => cmd.trim());
+          commands.forEach((cmd) => {
+            if (cmd === "C") return;
+            const match = cmd.match(/^([BSE])([+-]\d+)$/i);
+            if (match) {
+              const part = match[1].toUpperCase();
+              const deltaRad = THREE.MathUtils.degToRad(parseInt(match[2]));
+              controller.addCommand(part, deltaRad);
             }
-            case 'S': {
-              const currentRotation = robotControllerRef.current.robotParts.shoulder?.rotation.x || 0
-              const newRotation = THREE.MathUtils.clamp(
-                currentRotation + deltaRad,
-                robotControllerRef.current.shoulderMin,
-                robotControllerRef.current.shoulderMax
-              )
-              robotControllerRef.current.targetShoulderRotation = newRotation
-              robotControllerRef.current.isShoulderMoving = true
-              break
-            }
-            case 'E': {
-              const currentRotation = robotControllerRef.current.robotParts.elbow?.rotation.x || 0
-              const newRotation = THREE.MathUtils.clamp(
-                currentRotation + deltaRad,
-                robotControllerRef.current.elbowMin,
-                robotControllerRef.current.elbowMax
-              )
-              robotControllerRef.current.targetElbowRotation = newRotation
-              robotControllerRef.current.isElbowMoving = true
-              break
-            }
-            default:
-              console.log('Invalid command: ' + cmd)
-          }
-        } else {
-          console.log('Invalid command format: ' + cmd)
+          });
+          setLastContent(text);
         }
+      } catch (error) {
+        console.error("Error reading output.txt:", error);
       }
-      index++
-      setTimeout(executeNext, 500)
-    }
-    executeNext()
-  }
-
+    };
+    fetchAndProcessFile();
+    const interval = setInterval(fetchAndProcessFile, 1000);
+    return () => clearInterval(interval);
+  }, [lastContent]);
   useEffect(() => {
     const interval = setInterval(() => {
       if (robotRef.current && robotRef.current.camera) {
-        setForearmCamera(robotRef.current.camera)
-        clearInterval(interval)
+        setForearmCamera(robotRef.current.camera);
+        clearInterval(interval);
       }
-    }, 100)
-    return () => clearInterval(interval)
-  }, [])
-
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
   useEffect(() => {
-    let active = true
-    function checkRobot() {
+    let active = true;
+    const checkRobot = () => {
       if (active && robotRef.current && !robotControllerRef.current) {
-        robotControllerRef.current = new RobotController(robotRef.current)
+        robotControllerRef.current = new RobotController(robotRef.current);
       }
       if (active && !robotControllerRef.current) {
-        requestAnimationFrame(checkRobot)
+        requestAnimationFrame(checkRobot);
       }
-    }
-    requestAnimationFrame(checkRobot)
+    };
+    requestAnimationFrame(checkRobot);
     return () => {
-      active = false
-    }
-  }, [])
-
+      active = false;
+    };
+  }, []);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (autoRunningRef.current || !robotControllerRef.current) return
-      const key = e.key.toLowerCase()
-      if (key === 'm') {
-        robotControllerRef.current.demoMode = !robotControllerRef.current.demoMode
-        setDemoState(robotControllerRef.current.demoMode)
-        return
+      if (!robotControllerRef.current) return;
+      const controller = robotControllerRef.current;
+      const key = e.key.toLowerCase();
+      if (key === "m") {
+        controller.demoMode = !controller.demoMode;
+        setDemoState(controller.demoMode);
+        return;
       }
-      if (key === 'c') {
-        setIsClawClosed((prev) => {
-          const newState = !prev
-          if (newState && robotRef.current && boxRef.current) {
-            const pincerPos = new THREE.Vector3()
-            robotRef.current.pincerBase.getWorldPosition(pincerPos)
-            const boxPos = new THREE.Vector3()
-            boxRef.current.mesh.current.getWorldPosition(boxPos)
-            if (pincerPos.distanceTo(boxPos) < 0.5) {
-              setIsBoxGrabbed(true)
-              boxRef.current.api.mass.set(0)
-            }
-          } else if (!newState && boxRef.current) {
-            setIsBoxGrabbed(false)
-            boxRef.current.api.mass.set(1)
-          }
-          return newState
-        })
-        return
-      }
-      if (robotControllerRef.current.demoMode) return
+      if (controller.demoMode) return;
       switch (key) {
-        case 'q':
-          robotControllerRef.current.rotateBase(1)
-          break
-        case 'e':
-          robotControllerRef.current.rotateBase(-1)
-          break
-        case 'w':
-          robotControllerRef.current.moveShoulder(-1)
-          break
-        case 's':
-          robotControllerRef.current.moveShoulder(1)
-          break
-        case 'r':
-          robotControllerRef.current.moveElbow(-1)
-          break
-        case 'f':
-          robotControllerRef.current.moveElbow(1)
-          break
-        default:
-          break
+        case "q":
+          controller.rotateBase(1);
+          break;
+        case "e":
+          controller.rotateBase(-1);
+          break;
+        case "w":
+          controller.moveShoulder(-1);
+          break;
+        case "s":
+          controller.moveShoulder(1);
+          break;
+        case "r":
+          controller.moveElbow(-1);
+          break;
+        case "f":
+          controller.moveElbow(1);
+          break;
       }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isBoxGrabbed])
-
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const handleCommandSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (autoRunningRef.current || !robotControllerRef.current) return
-    const cmd = command.trim()
-    const match = cmd.match(/^([BSE])([+-]\d+(?:\.\d+)?)$/i)
+    e.preventDefault();
+    if (!robotControllerRef.current) return;
+    const controller = robotControllerRef.current;
+    const cmd = command.trim();
+    const match = cmd.match(/^([BSE])([+-]\d+(?:\.\d+)?)$/i);
     if (match) {
-      const part = match[1].toUpperCase()
-      const deltaRad = THREE.MathUtils.degToRad(parseFloat(match[2]))
-      switch (part) {
-        case 'B': {
-          const currentRotation = robotControllerRef.current.robotParts.base?.rotation.y || 0
-          robotControllerRef.current.targetBaseRotation = currentRotation + deltaRad
-          robotControllerRef.current.isBaseMoving = true
-          break
-        }
-        case 'S': {
-          const currentRotation = robotControllerRef.current.robotParts.shoulder?.rotation.x || 0
-          const newRotation = THREE.MathUtils.clamp(
-            currentRotation + deltaRad,
-            robotControllerRef.current.shoulderMin,
-            robotControllerRef.current.shoulderMax
-          )
-          robotControllerRef.current.targetShoulderRotation = newRotation
-          robotControllerRef.current.isShoulderMoving = true
-          break
-        }
-        case 'E': {
-          const currentRotation = robotControllerRef.current.robotParts.elbow?.rotation.x || 0
-          const newRotation = THREE.MathUtils.clamp(
-            currentRotation + deltaRad,
-            robotControllerRef.current.elbowMin,
-            robotControllerRef.current.elbowMax
-          )
-          robotControllerRef.current.targetElbowRotation = newRotation
-          robotControllerRef.current.isElbowMoving = true
-          break
-        }
-        default:
-          console.log('Invalid command: ' + cmd)
-      }
-    } else if (cmd.toLowerCase() === 'm') {
-      robotControllerRef.current.demoMode = !robotControllerRef.current.demoMode
-      setDemoState(robotControllerRef.current.demoMode)
-    } else if (cmd.toLowerCase() === 'c') {
-      setIsClawClosed((prev) => {
-        const newState = !prev
-        if (newState && robotRef.current && boxRef.current) {
-          const pincerPos = new THREE.Vector3()
-          robotRef.current.pincerBase.getWorldPosition(pincerPos)
-          const boxPos = new THREE.Vector3()
-          boxRef.current.mesh.current.getWorldPosition(boxPos)
-          if (pincerPos.distanceTo(boxPos) < 0.5) {
-            setIsBoxGrabbed(true)
-            boxRef.current.api.mass.set(0)
-          }
-        } else if (!newState && boxRef.current) {
-          setIsBoxGrabbed(false)
-          boxRef.current.api.mass.set(1)
-        }
-        return newState
-      })
-    } else {
-      console.log('Invalid command: ' + cmd)
+      const part = match[1].toUpperCase();
+      const deltaRad = THREE.MathUtils.degToRad(parseFloat(match[2]));
+      controller.addCommand(part, deltaRad);
+    } else if (cmd.toLowerCase() === "m") {
+      controller.demoMode = !controller.demoMode;
+      setDemoState(controller.demoMode);
     }
-    setCommand('')
-  }
-
+    setCommand("");
+  };
   return (
     <>
       <Head>
-        <title>Robot Arm with Forearm View and Interactive Box</title>
+        <title>Robot Arm</title>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <style>{`
-          body, html { margin: 0; padding: 0; width: 100%; height: 100%; }
-          canvas { display: block; }
-          #instructions {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 10;
-            color: #fff;
-            font-family: Arial, sans-serif;
-            line-height: 1.5;
-            font-size: 12px;
-          }
-          #instructions ul { margin: 0; }
-          #instructions li { margin-bottom: 5px; }
-          #commandForm {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-          }
-          #commandForm input {
-            padding: 10px;
-            font-size: 12px;
-            width: 300px;
-            border: 0px;
-            border-radius: 0px;
-            color: #000;
-            background: #ffffff;
-          }
-          #forearmViewContainer {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            z-index: 20;
-            background: #000;
-          }
-        `}</style>
+            body, html {
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              height: 100%;
+            }
+            canvas {
+              display: block;
+            }
+            #commandForm {
+              position: fixed;
+              bottom: 20px;
+              left: 50%;
+              transform: translateX(-50%);
+              z-index: 10;
+            }
+            #commandForm input {
+              padding: 10px;
+              line-height: 1;
+              font-size: 12px;
+              width: 300px;
+              border: 0;
+              color: #000;
+              background: #fff; /* White background added */
+            }
+            #forearmViewContainer {
+              position: fixed;
+              top: 10px;
+              right: 10px;
+              z-index: 20;
+              width: 210px;
+              height: 119px;
+              box-sizing: border-box;
+              border: 1px solid #fff;
+              background: #000;
+            }
+            #instructions {
+              position: absolute;
+              top: 20px;
+              left: 20px;
+              z-index: 10;
+              color: #fff;
+              font-family: Arial, sans-serif;
+              line-height: 1.5;
+              font-size: 12px;
+            }
+            #instructions ul {
+              margin: 0;
+            }
+            #instructions li {
+              margin-bottom: 5px;
+            }
+          `}</style>
       </Head>
-      <div id="instructions">
-        <ul>
-          <li>
-            <strong>Q/E:</strong> Rotate Base
-          </li>
-          <li>
-            <strong>W/S:</strong> Move Shoulder
-          </li>
-          <li>
-            <strong>R/F:</strong> Move Elbow
-          </li>
-          <li>
-            <strong>M:</strong> Demo Mode ({demoState ? 'ON' : 'OFF'})
-          </li>
-          <li>
-            <strong>C:</strong> Claw (pick up/release)
-          </li>
-        </ul>
+      {isClient && (
+        <Canvas
+          shadows
+          camera={{ position: [2, 1, 5], fov: 75 }}
+          style={{ width: "100vw", height: "100vh" }}
+        >
+          <SceneSetter setScene={setScene} />
+          <color attach="background" args={["#000"]} />
+          <ambientLight intensity={0.4} />
+          <directionalLight
+            position={[0, 10, 10]}
+            intensity={0.5}
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+          />
+          <OrbitControls maxPolarAngle={Math.PI / 2 - 0.1} minPolarAngle={0} />
+          <Grid
+            position={[0, 0.001, 0]}
+            args={[10, 10]}
+            cellColor="#bbbbbb"
+            sectionColor="#dddddd"
+            cellSize={1}
+            sectionSize={10}
+            fadeDistance={20}
+            fadeStrength={1}
+          />
+          <Physics gravity={[0, -9.82, 0]}>
+            <RobotUpdater controllerRef={robotControllerRef} />
+            <RobotArm ref={robotRef} position={[0, 0.11, 0]} />
+            <Floor position={[0, 0, 0]} />
+            <ColoredBox position={[1, 0.1, 0]} color="red" />
+            <ColoredBox position={[0, 0.1, 1]} color="green" />
+            <ColoredBox position={[-1, 0.1, 0]} color="blue" />
+          </Physics>
+        </Canvas>
+      )}
+      <div id="forearmViewContainer">
+        {scene && forearmCamera && <ForearmView scene={scene} robotCamera={forearmCamera} />}
       </div>
-      <Canvas shadows camera={{ position: [2, 1, 5], fov: 75 }} style={{ width: '100vw', height: '100vh' }}>
-        <SceneSetter setScene={setScene} />
-        <color attach="background" args={['#000']} />
-        <ambientLight intensity={0.4} />
-        <directionalLight
-          position={[0, 10, 10]}
-          intensity={0.5}
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-        />
-        <OrbitControls maxPolarAngle={Math.PI / 2 - 0.1} minPolarAngle={0} />
-        <Grid position={[0, 0.001, 0]} args={[10, 10]} cellColor="#bbbbbb" sectionColor="#dddddd" cellSize={1} sectionSize={10} />
-        <Physics gravity={[0, -9.82, 0]}>
-          <RobotUpdater />
-          <BoxUpdater robotRef={robotRef} boxRef={boxRef} isBoxGrabbed={isBoxGrabbed} />
-          <RobotArm ref={robotRef} clawClosed={isClawClosed} />
-          <InteractiveBox ref={boxRef} isBoxGrabbed={isBoxGrabbed} />
-          <Floor />
-        </Physics>
-      </Canvas>
-      <div id="forearmViewContainer">{scene && forearmCamera && <ForearmView scene={scene} robotCamera={forearmCamera} />}</div>
       <div id="commandForm">
         <form onSubmit={handleCommandSubmit}>
           <input
             type="text"
             value={command}
             onChange={(e) => setCommand(e.target.value)}
-            placeholder="Enter command, e.g. B+30, S-15, E+20, M, or C"
+            placeholder="Enter command, e.g. B+30, S-15, E+20, or M"
+            suppressHydrationWarning={true}
           />
         </form>
       </div>
-      <ProcessOutput runCommands={runCommandsSequence} />
     </>
-  )
-}
+  );
+};
 
-export default Home
+export default Home;
