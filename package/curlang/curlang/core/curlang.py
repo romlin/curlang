@@ -4,104 +4,44 @@ import re
 import shlex
 import tokenize
 
-from lark import Lark, Transformer
+from lark import Lark, Transformer, Token
 
 curlang_grammar = r"""
-    start: statement+
-    statement: assignment_stmt | if_stmt | cmd_stmt | delete_stmt | fail_stmt | find_stmt | get_stmt | make_stmt | pass_stmt | print_stmt | python_stmt | use_stmt
-
-    assignment_stmt: var "=" expr ";"?
-    if_stmt: "if" "(" condition ")" block ("else" block)?
-    condition: expr "==" expr
-    expr: STRING | var
-
-    cmd_block: "{" cmd_content? "}"
-    cmd_content: /[^}]+/
-
-    cmd_stmt: "cmd" (cmd_block | RAW) var? ";"?
-
-    delete_stmt: "delete" STRING ";"?
-    fail_stmt: "fail" STRING
-    find_stmt: KEYWORD STRING block "else" STRING ";"?
-    get_stmt: "get" STRING "as" STRING (block)?
-    make_stmt: "make" STRING ";"?
-    pass_stmt: "pass" STRING
-    print_stmt: "print" (STRING | var)
-
-    python_stmt: "python" python_block var? ";"?
-    python_block: "{" python_code "}"
-    python_code: /([^{}]|\{[^{}]*\})+/
-
-    module_list: module ("," module)*
-    module: CNAME (":" CNAME)?
-    use_stmt: "use" module_list ";"?
-
-    block: "{" statement+ "}"
-    KEYWORD: "!find" | "find"
-
-    COMMENT: /#[^\n]*/
-    RAW: /[^\n]+/
-    STRING: /"([^"\\]*(\\.[^"\\]*)*)"/
-
-    var: VAR
-    VAR: /@[a-zA-Z_]\w*/
-
-    %import common.CNAME
-    %import common.WS
-    %ignore WS
-    %ignore COMMENT
+start: statement+
+statement: assignment_stmt | if_stmt | cmd_stmt | delete_stmt | fail_stmt | find_stmt | get_stmt | make_stmt | pass_stmt | print_stmt | python_stmt | use_stmt | unzip_stmt
+assignment_stmt: var "=" expr ";"?
+if_stmt: "if" "(" condition ")" block ("else" block)?
+condition: expr "==" expr
+expr: STRING | var
+cmd_block: "{" cmd_content? "}"
+cmd_content: /[^}]+/
+cmd_stmt: "cmd" (cmd_block | RAW) var? ";"?
+delete_stmt: "delete" STRING ";"?
+fail_stmt: "fail" STRING
+find_stmt: KEYWORD STRING block "else" STRING ";"?
+get_stmt: "get" STRING "as" STRING (block)?
+make_stmt: "make" STRING ";"?
+pass_stmt: "pass" STRING
+print_stmt: "print" (STRING | var)
+python_stmt: "python" python_block var? ";"?
+python_block: "{" python_content* "}"
+python_content: /[^{}]+/ | python_block
+use_stmt: "use" module_list ";"?
+module_list: module ("," module)*
+module: CNAME (":" CNAME)?
+unzip_stmt: "unzip" STRING ";"?
+block: "{" statement+ "}"
+KEYWORD: "!find" | "find"
+COMMENT: /#[^\n]*/
+RAW: /[^\n]+/
+STRING: /"([^"\\]*(\\.[^"\\]*)*)"/
+var: VAR
+VAR: /@[a-zA-Z_]\w*/
+%import common.CNAME
+%import common.WS
+%ignore WS
+%ignore COMMENT
 """
-
-
-def substitute_env_variables(code):
-    code = code + "\n"
-    try:
-        code_bytes = code.encode('utf-8')
-        token_gen = list(tokenize.tokenize(io.BytesIO(code_bytes).readline))
-    except tokenize.TokenError:
-        return code
-
-    tokens = []
-    prev_type = None
-    i = 0
-
-    while i < len(token_gen):
-        tok = token_gen[i]
-
-        if tok.type in (
-                tokenize.ENCODING, tokenize.NEWLINE, tokenize.NL,
-                tokenize.COMMENT):
-            tokens.append(tok)
-            i += 1
-            continue
-
-        if tok.type == tokenize.OP and tok.string == '@':
-            if (i + 1 < len(token_gen) and token_gen[
-                i + 1].type == tokenize.NAME and
-                    prev_type not in (
-                            tokenize.NAME, tokenize.NUMBER, tokenize.STRING,
-                            tokenize.RPAR, tokenize.RSQB, tokenize.RBRACE)):
-                next_tok = token_gen[i + 1]
-                replacement = f'os.environ.get("{next_tok.string}")'
-                new_tok = tokenize.TokenInfo(
-                    type=tokenize.NAME,
-                    string=replacement,
-                    start=tok.start,
-                    end=next_tok.end,
-                    line=tok.line
-                )
-                tokens.append(new_tok)
-                i += 2
-                continue
-        tokens.append(tok)
-        prev_type = tok.type
-        i += 1
-
-    try:
-        new_code = tokenize.untokenize(tokens).decode('utf-8')
-    except Exception:
-        new_code = code
-    return new_code
 
 
 class CurlangTransformer(Transformer):
@@ -123,25 +63,19 @@ class CurlangTransformer(Transformer):
         return items[0]
 
     def block(self, items):
-        return items
+        result = []
+        for stmt in items:
+            if isinstance(stmt, list):
+                result.extend(stmt)
+            else:
+                result.append(stmt)
+        return result
 
     def cmd_block(self, items):
         return items[0] if items else ""
 
     def cmd_content(self, items):
         return items[0].value if hasattr(items[0], "value") else items[0]
-
-    def python_block(self, items):
-        content = "\n".join(items)
-
-        if not content.strip():
-            return "{\n\n}"
-
-        return "{\n" + content + "\n}"
-
-    def python_code(self, items):
-        return ''.join(
-            item if isinstance(item, str) else item for item in items)
 
     def cmd_stmt(self, items):
         command_text = items[0].strip()
@@ -177,14 +111,19 @@ class CurlangTransformer(Transformer):
     def print_stmt(self, items):
         return {"type": "print", "message": items[0], "runtime": "bash"}
 
+    def python_content(self, items):
+        item = items[0]
+        if isinstance(item, Token):
+            return item.value
+        return item
+
+    def python_block(self, items):
+        return "".join(items)
+
     def python_stmt(self, items):
         code = items[0]
-        if code.startswith("{") and code.endswith("}"):
-            code = code[1:-1].strip()
-
         cleaned_code = inspect.cleandoc(code)
         substituted_code = substitute_env_variables(cleaned_code)
-
         result = {"type": "python", "code": substituted_code,
                   "runtime": "python"}
         if len(items) > 1:
@@ -213,11 +152,14 @@ class CurlangTransformer(Transformer):
             return (items[0], items[1])
         return items[0]
 
+    def unzip_stmt(self, items):
+        return {"type": "unzip", "target": items[0], "runtime": "bash"}
+
     def start(self, items):
         return items
 
     def statement(self, items):
-        return items[0] if len(items) == 1 else items
+        return items[0]
 
     def RAW(self, token):
         return token.value
@@ -232,6 +174,51 @@ class CurlangTransformer(Transformer):
 parser = Lark(curlang_grammar, parser="lalr", transformer=CurlangTransformer())
 
 
+def substitute_env_variables(code):
+    code = code + "\n"
+    try:
+        code_bytes = code.encode("utf-8")
+        token_gen = list(tokenize.tokenize(io.BytesIO(code_bytes).readline))
+    except tokenize.TokenError:
+        return code
+    tokens = []
+    i = 0
+    while i < len(token_gen):
+        tok = token_gen[i]
+        if tok.type in (
+                tokenize.ENCODING, tokenize.NEWLINE, tokenize.NL,
+                tokenize.COMMENT):
+            tokens.append(tok)
+            i += 1
+            continue
+        if tok.type == tokenize.OP and tok.string == "@":
+            if tok.line.lstrip().startswith("@"):
+                tokens.append(tok)
+                i += 1
+                continue
+            if i + 1 < len(token_gen) and token_gen[
+                i + 1].type == tokenize.NAME:
+                next_tok = token_gen[i + 1]
+                replacement = f'os.environ.get("{next_tok.string}")'
+                new_tok = tokenize.TokenInfo(
+                    type=tokenize.NAME,
+                    string=replacement,
+                    start=tok.start,
+                    end=next_tok.end,
+                    line=tok.line
+                )
+                tokens.append(new_tok)
+                i += 2
+                continue
+        tokens.append(tok)
+        i += 1
+    try:
+        new_code = tokenize.untokenize(tokens).decode("utf-8")
+    except Exception:
+        new_code = code
+    return new_code
+
+
 def command_to_code(cmd):
     t = cmd.get("type")
     if t == "find":
@@ -240,7 +227,10 @@ def command_to_code(cmd):
         m = shlex.quote(cmd["message"])
         c = ""
         if cmd.get("block"):
-            c = "\n".join(command_to_code(x) for x in cmd["block"])
+            blk = cmd["block"]
+            if isinstance(blk, dict):
+                blk = [blk]
+            c = "\n".join(command_to_code(x) for x in blk)
         if cmd["negated"]:
             code = f'if [ ! -f {f} ]; then\n{c}\nelse\n    echo {m}\nfi'
         else:
@@ -253,7 +243,10 @@ def command_to_code(cmd):
         dl = shlex.quote(
             f'Downloading from {cmd["url"]} to {cmd["destination"]}')
         if cmd.get("block"):
-            s, f_ = process_get_inner_block(cmd["block"])
+            blk = cmd["block"]
+            if isinstance(blk, dict):
+                blk = [blk]
+            s, f_ = process_get_inner_block(blk)
             code = f'echo {dl}\ncurl -L {u} -o {d}\nret=$?\nif [ $ret -eq 0 ]; then\n    {s}\nelse\n    {f_}\nfi'
         else:
             code = f'echo {dl}\ncurl -L {u} -o {d}'
@@ -355,12 +348,23 @@ def command_to_code(cmd):
             right = '"${%s}"' % right[1:]
         else:
             right = shlex.quote(right)
-        block_code = "\n".join(command_to_code(x) for x in cmd["block"])
+        blk = cmd["block"]
+        if isinstance(blk, dict):
+            blk = [blk]
+        block_code = "\n".join(command_to_code(x) for x in blk)
         if "else" in cmd:
-            else_code = "\n".join(command_to_code(x) for x in cmd["else"])
+            els = cmd["else"]
+            if isinstance(els, dict):
+                els = [els]
+            else_code = "\n".join(command_to_code(x) for x in els)
             code = f'if [ {left} == {right} ]; then\n{block_code}\nelse\n{else_code}\nfi'
         else:
             code = f'if [ {left} == {right} ]; then\n{block_code}\nfi'
+        return f'# runtime: {runtime}\n{code}'
+    elif t == "unzip":
+        runtime = "bash"
+        target = shlex.quote(cmd["target"])
+        code = f'gunzip {target}'
         return f'# runtime: {runtime}\n{code}'
     else:
         runtime = "bash"
@@ -400,6 +404,11 @@ def run_curlang_block(code):
         ast = parser.parse(code)
     except Exception as e:
         raise ValueError(e)
+    if not isinstance(ast, list):
+        if hasattr(ast, "children"):
+            ast = ast.children
+        else:
+            ast = [ast]
     r = []
     runtimes = set()
     for cmd in ast:
