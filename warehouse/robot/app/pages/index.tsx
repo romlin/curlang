@@ -456,7 +456,7 @@ const Home: NextPage = () => {
               width: 300px;
               border: 0;
               color: #000;
-              background: #fff; /* White background added */
+              background: #fff;
             }
             #forearmViewContainer {
               position: fixed;
@@ -487,6 +487,11 @@ const Home: NextPage = () => {
             }
           `}</style>
       </Head>
+      {(!scene || !forearmCamera) && (
+        <div style={{ position: "absolute", top: 0, left: 0, width: "100vw", height: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, color: "#fff", fontSize: "24px" }}>
+          Loading...
+        </div>
+      )}
       {isClient && (
         <Canvas
           shadows

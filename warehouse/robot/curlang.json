@@ -1,32 +1,32 @@
 [
   {
-    "id": "part-XtQjvs7QHW",
+    "id": "part-65yngeVEF8",
     "type": "markdown",
     "disabled": false,
     "code": "# robot\nBuilt with Curlang"
   },
   {
-    "id": "part-057pQ8XVOG",
+    "id": "part-eu5NOEUyW3",
     "type": "curlang",
     "disabled": false,
-    "code": "# Download granite-3.1-2b-instruct-Q4_K_M.gguf\n!find \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n    get \"https://huggingface.co/bartowski/granite-3.1-2b-instruct-GGUF/resolve/main/granite-3.1-2b-instruct-Q4_K_M.gguf\" as \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n} else \"granite-3.1-2b-instruct-Q4_K_M.gguf already exists.\""
+    "code": "# Download granite-3.1-2b-instruct-Q4_K_M.gguf\n!find \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n    get \"https://huggingface.co/bartowski/granite-3.1-2b-instruct-GGUF/resolve/main/granite-3.1-2b-instruct-Q4_K_M.gguf\" as \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n} else \"granite-3.1-2b-instruct-Q4_K_M.gguf already exists.\"\n\n# Download moondream-0_5b-int8.mf\n!find \"moondream-0_5b-int8.mf\" {\n    get \"https://huggingface.co/vikhyatk/moondream2/resolve/9dddae84d54db4ac56fe37817aeaeb502ed083e2/moondream-0_5b-int8.mf.gz\" as \"moondream-0_5b-int8.mf.gz\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n\n    unzip \"moondream-0_5b-int8.mf.gz\"\n} else \"moondream-0_5b-int8.mf already exists.\""
   },
   {
-    "id": "part-7lha3CUpzw",
+    "id": "part-K2ojrIkLWp",
     "type": "curlang",
     "disabled": false,
     "code": "# Check whether granite-3.1-2b-instruct-Q4_K_M.gguf exists\nfind \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n    print \"granite-3.1-2b-instruct-Q4_K_M.gguf exists.\"\n} else \"granite-3.1-2b-instruct-Q4_K_M.gguf is missing.\""
   },
   {
-    "id": "part-xQhIT42IB6",
+    "id": "part-VWRhtTjSLi",
     "type": "curlang",
     "disabled": false,
-    "code": "use FastAPI:fastapi, Llama:llama_cpp, os, uvicorn"
+    "code": "use FastAPI:fastapi, File:fastapi, Image:PIL, Llama:llama_cpp, UploadFile:fastapi\nuse io, moondream, os, uvicorn"
   },
   {
-    "id": "part-X0nW9si3Kr",
+    "id": "part-ICYTMewgNl",
     "type": "curlang",
     "disabled": false,
-    "code": "python {\n    app = FastAPI()\n\n    llm = Llama(\n        model_path=\"granite-3.1-2b-instruct-Q4_K_M.gguf\",\n        n_ctx=131072,\n        verbose=False\n    )\n\n    ROBOT_PROMPT = \"Control a robotic arm with joints: B rotates on Y (unlimited), S on X (0°-45°), and E on X (-90° to 45°). Each command consists of a joint letter followed by a signed angle change (for example, B+10). Ignore M commands. Generate a realistic industrial movement sequence with up to 20 commands, using purposeful, incremental moves while respecting limits. Output the result as one comma-separated line with no quotes, periods, or extra characters.\"\n\n    @app.post(\"/generate\")\n    def generate_robot_commands():\n        input_text = (\n            f\"<|start_of_role|>system<|end_of_role|>You are a helpful assistant. Be concise and direct.<|end_of_text|>\"\n            f\"<|start_of_role|>user<|end_of_role|>{ROBOT_PROMPT}<|end_of_text|><|start_of_role|>assistant<|end_of_role|>\"\n        )\n        response = llm(\n            input_text,\n            max_tokens=512,\n            stop=[\"<|endoftext|>\"],\n            seed=-1,\n            temperature=0.7\n        )\n        output = response[\"choices\"][0][\"text\"].strip()\n        \n        with open(\"output/output.txt\", \"w\") as f:\n            f.write(output)\n        \n        result_dict = {\"result\": output}\n        return result_dict\n    \n    uvicorn.run(app, host=\"127.0.0.1\", port=4000)\n}"
+    "code": "python {\n    app = FastAPI()\n    moondream_model = moondream.vl(model=\"moondream-0_5b-int8.mf\")\n\n    @app.post(\"/upload-image\")\n    async def upload_image(image: UploadFile = File(...)):\n        try:\n            contents = await image.read()\n            img = Image.open(io.BytesIO(contents))\n            encoded_image = moondream_model.encode_image(img)\n            caption = \"Generated caption\"\n            answer = moondream_model.query(\n                encoded_image,\n                \"What's in this image?\"\n            )[\"answer\"]\n            return dict(\n                caption=caption,\n                answer=answer\n            )\n        except Exception as e:\n            return dict(error=str(e))\n    \n    uvicorn.run(app, host=\"127.0.0.1\", port=4000)\n}"
   }
 ]
