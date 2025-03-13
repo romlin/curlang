@@ -28,7 +28,7 @@ python_block: "{" python_content* "}"
 python_content: /[^{}]+/ | python_block
 use_stmt: "use" module_list ";"?
 module_list: module ("," module)*
-module: CNAME (":" CNAME)?
+module: MODULE (":" MODULE)?
 unzip_stmt: "unzip" STRING ";"?
 block: "{" statement+ "}"
 KEYWORD: "!find" | "find"
@@ -37,6 +37,7 @@ RAW: /[^\n]+/
 STRING: /"([^"\\]*(\\.[^"\\]*)*)"/
 var: VAR
 VAR: /@[a-zA-Z_]\w*/
+MODULE: /[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*/
 %import common.CNAME
 %import common.WS
 %ignore WS
@@ -186,8 +187,7 @@ def substitute_env_variables(code):
     while i < len(token_gen):
         tok = token_gen[i]
         if tok.type in (
-                tokenize.ENCODING, tokenize.NEWLINE, tokenize.NL,
-                tokenize.COMMENT):
+        tokenize.ENCODING, tokenize.NEWLINE, tokenize.NL, tokenize.COMMENT):
             tokens.append(tok)
             i += 1
             continue
