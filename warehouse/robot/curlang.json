@@ -1,32 +1,38 @@
 [
   {
-    "id": "part-65yngeVEF8",
+    "id": "part-wYaXZJ02xe",
     "type": "markdown",
     "disabled": false,
     "code": "# robot\nBuilt with Curlang"
   },
   {
-    "id": "part-eu5NOEUyW3",
+    "id": "part-sIc1nLVsPZ",
     "type": "curlang",
     "disabled": false,
     "code": "# Download granite-3.1-2b-instruct-Q4_K_M.gguf\n!find \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n    get \"https://huggingface.co/bartowski/granite-3.1-2b-instruct-GGUF/resolve/main/granite-3.1-2b-instruct-Q4_K_M.gguf\" as \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n} else \"granite-3.1-2b-instruct-Q4_K_M.gguf already exists.\"\n\n# Download moondream-0_5b-int8.mf\n!find \"moondream-0_5b-int8.mf\" {\n    get \"https://huggingface.co/vikhyatk/moondream2/resolve/9dddae84d54db4ac56fe37817aeaeb502ed083e2/moondream-0_5b-int8.mf.gz\" as \"moondream-0_5b-int8.mf.gz\" {\n        pass \"Download completed!\"\n        fail \"Download failed!\"\n    }\n\n    unzip \"moondream-0_5b-int8.mf.gz\"\n} else \"moondream-0_5b-int8.mf already exists.\""
   },
   {
-    "id": "part-K2ojrIkLWp",
+    "id": "part-IpZmpag9NL",
     "type": "curlang",
     "disabled": false,
     "code": "# Check whether granite-3.1-2b-instruct-Q4_K_M.gguf exists\nfind \"granite-3.1-2b-instruct-Q4_K_M.gguf\" {\n    print \"granite-3.1-2b-instruct-Q4_K_M.gguf exists.\"\n} else \"granite-3.1-2b-instruct-Q4_K_M.gguf is missing.\""
   },
   {
-    "id": "part-VWRhtTjSLi",
+    "id": "part-V0cc8nJmrI",
     "type": "curlang",
     "disabled": false,
-    "code": "use FastAPI:fastapi, File:fastapi, Image:PIL, Llama:llama_cpp, UploadFile:fastapi\nuse io, moondream, os, uvicorn"
+    "code": "use CORSMiddleware:fastapi.middleware.cors, FastAPI:fastapi, File:fastapi, Form:fastapi, Image:PIL, Llama:llama_cpp, UploadFile:fastapi, io, moondream, os, uvicorn"
   },
   {
-    "id": "part-ICYTMewgNl",
+    "id": "part-QrQX5VFrY5",
+    "type": "curlang",
+    "disabled": true,
+    "code": "python {\n    app = FastAPI()\n    app.add_middleware(\n        CORSMiddleware,\n        allow_origins=[\"*\"],\n        allow_credentials=True,\n        allow_methods=[\"*\"],\n        allow_headers=[\"*\"],\n    )\n\n    moondream_model = moondream.vl(model=\"moondream-2b-int8.mf\")\n\n    @app.post(\"/upload-image\")\n    async def upload_image(image: UploadFile = File(...)):\n        try:\n            contents = await image.read()\n            with open(\"temp.jpg\", \"wb\") as f:\n                f.write(contents)\n            img = Image.open(io.BytesIO(contents))\n            encoded_image = moondream_model.encode_image(img)\n            caption = \"Generated caption\"\n            answer = moondream_model.query(encoded_image, \"Where is the gripper positioned?\")[\"answer\"]\n            return dict(caption=caption, answer=answer)\n        except Exception as e:\n            return dict(error=str(e))\n\n    uvicorn.run(app, host=\"127.0.0.1\", port=4000)\n}"
+  },
+  {
+    "id": "part-tuspCUsn2J",
     "type": "curlang",
     "disabled": false,
-    "code": "python {\n    app = FastAPI()\n    moondream_model = moondream.vl(model=\"moondream-0_5b-int8.mf\")\n\n    @app.post(\"/upload-image\")\n    async def upload_image(image: UploadFile = File(...)):\n        try:\n            contents = await image.read()\n            img = Image.open(io.BytesIO(contents))\n            encoded_image = moondream_model.encode_image(img)\n            caption = \"Generated caption\"\n            answer = moondream_model.query(\n                encoded_image,\n                \"What's in this image?\"\n            )[\"answer\"]\n            return dict(\n                caption=caption,\n                answer=answer\n            )\n        except Exception as e:\n            return dict(error=str(e))\n    \n    uvicorn.run(app, host=\"127.0.0.1\", port=4000)\n}"
+    "code": "python {\n    app = FastAPI()\n    \n    app.add_middleware(\n        CORSMiddleware,\n        allow_origins=[\"*\"],\n        allow_credentials=True,\n        allow_methods=[\"*\"],\n        allow_headers=[\"*\"],\n    )\n\n    moondream_model = moondream.vl(model=\"moondream-0_5b-int8.mf\")\n\n    @app.post(\"/upload-image\")\n    async def upload_image(image: UploadFile = File(...), object_name: str = Form(\n        \"green object\"\n    )):\n        \n        try:\n            print(\"Starting to process the image...\")\n            contents = await image.read()\n            \n            with open(\"temp.jpg\", \"wb\") as f:\n                f.write(contents)\n            \n            print(\"Image saved as temp.jpg.\")\n            \n            img = Image.open(io.BytesIO(contents))\n            width, height = img.size  # Get the original image dimensions\n            \n            encoded_image = moondream_model.encode_image(img)\n            \n            caption = moondream_model.caption(encoded_image)[\"caption\"]\n            print(caption)\n            \n            result = moondream_model.detect(encoded_image, object_name)[\"objects\"]\n            print(result)\n            \n            return dict(\n                caption=caption,\n                result=result,\n                image_width=width,\n                image_height=height\n            )\n\n        except Exception as e:\n            print(f\"Error encountered: {str(e)}\")\n            return dict(error=str(e))\n\n    uvicorn.run(app, host=\"127.0.0.1\", port=4000)\n}"
   }
 ]
