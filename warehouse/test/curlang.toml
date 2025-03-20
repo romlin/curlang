@@ -26,8 +26,8 @@ sox = "*"
 wget = "*"
 
 [packages.python]
-fastapi = "0.115.9"
-llama-cpp-python = "0.3.7"
+fastapi = "0.115.11"
+llama-cpp-python = "0.3.8"
 pexpect = "4.9.0"
 tiktoken = "0.9.0"
 uvicorn = "0.34.0"
