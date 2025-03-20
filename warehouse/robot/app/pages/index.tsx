@@ -1,6 +1,13 @@
 "use client";
 import { NextPage } from "next";
-import React, { useEffect, useRef, useState, forwardRef, memo, useImperativeHandle } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  forwardRef,
+  memo,
+  useImperativeHandle
+} from "react";
 import Head from "next/head";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid } from "@react-three/drei";
@@ -148,6 +155,11 @@ const RobotArm = memo(
     const pincerClaw1Ref = useRef<THREE.Mesh>(null);
     const pincerClaw2Ref = useRef<THREE.Mesh>(null);
     const forearmCameraRef = useRef<THREE.PerspectiveCamera>(null);
+    useEffect(() => {
+      if (forearmCameraRef.current) {
+        forearmCameraRef.current.setFocalLength(35);
+      }
+    }, []);
     useImperativeHandle(ref, () => ({
       base: baseRef.current!,
       shoulder: shoulderRef.current!,
@@ -157,7 +169,7 @@ const RobotArm = memo(
       pincerBase: pincerBaseRef.current!,
       pincerClaw1: pincerClaw1Ref.current!,
       pincerClaw2: pincerClaw2Ref.current!,
-      camera: forearmCameraRef.current!,
+      camera: forearmCameraRef.current!
     }));
     return (
       <group position={position}>
@@ -179,7 +191,11 @@ const RobotArm = memo(
               <group
                 ref={elbowRef}
                 position={[0, 0.6, 0]}
-                rotation={[THREE.MathUtils.degToRad(45), 0, Math.PI / 2]}
+                rotation={[
+                  THREE.MathUtils.degToRad(45),
+                  0,
+                  Math.PI / 2
+                ]}
               >
                 <mesh castShadow>
                   <cylinderGeometry args={[0.15, 0.15, 0.15, 32]} />
@@ -206,16 +222,18 @@ const RobotArm = memo(
                   </group>
                   <perspectiveCamera
                     ref={forearmCameraRef}
-                    fov={60}
-                    aspect={16 / 9}
+                    fov={38}
+                    aspect={420 / 238}
                     near={0.1}
                     far={100}
                     position={[0, 0, 0.45]}
                     rotation={[
                       THREE.MathUtils.degToRad(0),
                       THREE.MathUtils.degToRad(180),
-                      THREE.MathUtils.degToRad(90),
+                      THREE.MathUtils.degToRad(90)
                     ]}
+                    filmGauge={35}
+                    focus={10}
                   />
                 </group>
               </group>
@@ -232,7 +250,7 @@ RobotArm.displayName = "RobotArm";
 const Floor: React.FC<{ position?: [number, number, number] }> = ({ position }) => {
   const [ref] = usePlane<THREE.Mesh>(() => ({
     rotation: [-Math.PI / 2, 0, 0],
-    position,
+    position
   }));
   return (
     <mesh ref={ref as React.Ref<THREE.Mesh>} receiveShadow>
@@ -251,7 +269,7 @@ const ColoredBox: React.FC<ColoredBoxProps> = ({ position, color }) => {
   const [ref] = useBox<THREE.Mesh>(() => ({
     mass: 0,
     position,
-    args: [0.2, 0.2, 0.2],
+    args: [0.2, 0.2, 0.2]
   }));
   return (
     <mesh ref={ref} castShadow receiveShadow>
@@ -278,17 +296,21 @@ const SceneSetter: React.FC<{ setScene: (scene: THREE.Scene) => void }> = ({ set
   return null;
 };
 
-const ForearmView: React.FC<{
+interface ForearmViewProps {
   scene: THREE.Scene;
   robotCamera: THREE.PerspectiveCamera;
-}> = ({ scene, robotCamera }) => {
+  width: number;
+  height: number;
+}
+const ForearmView: React.FC<ForearmViewProps> = ({ scene, robotCamera, width, height }) => {
   const viewRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   useEffect(() => {
     if (!viewRef.current) return;
     viewRef.current.innerHTML = "";
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(208, 117);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(width, height);
     renderer.setClearColor(0x000000);
     renderer.shadowMap.enabled = true;
     viewRef.current.appendChild(renderer.domElement);
@@ -301,7 +323,7 @@ const ForearmView: React.FC<{
     return () => {
       renderer.dispose();
     };
-  }, [scene, robotCamera]);
+  }, [scene, robotCamera, width, height]);
   return <div ref={viewRef} style={{ width: "100%", height: "100%" }} />;
 };
 
@@ -315,9 +337,16 @@ const Home: NextPage = () => {
   const [scene, setScene] = useState<THREE.Scene | null>(null);
   const robotControllerRef = useRef<RobotController | null>(null);
   const initialLoadRef = useRef(true);
+  const [forearmScale, setForearmScale] = useState(0.5);
+  const baseWidth = 420;
+  const baseHeight = 238;
+  const viewWidth = baseWidth * forearmScale;
+  const viewHeight = baseHeight * forearmScale;
+
   useEffect(() => {
     setIsClient(true);
   }, []);
+
   useEffect(() => {
     const fetchAndProcessFile = async () => {
       try {
@@ -351,6 +380,7 @@ const Home: NextPage = () => {
     const interval = setInterval(fetchAndProcessFile, 1000);
     return () => clearInterval(interval);
   }, [lastContent]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (robotRef.current && robotRef.current.camera) {
@@ -360,6 +390,7 @@ const Home: NextPage = () => {
     }, 100);
     return () => clearInterval(interval);
   }, []);
+
   useEffect(() => {
     let active = true;
     const checkRobot = () => {
@@ -375,6 +406,7 @@ const Home: NextPage = () => {
       active = false;
     };
   }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!robotControllerRef.current) return;
@@ -410,6 +442,7 @@ const Home: NextPage = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
   const handleCommandSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!robotControllerRef.current) return;
@@ -426,6 +459,7 @@ const Home: NextPage = () => {
     }
     setCommand("");
   };
+
   return (
     <>
       <Head>
@@ -433,62 +467,64 @@ const Home: NextPage = () => {
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <style>{`
-            body, html {
-              margin: 0;
-              padding: 0;
-              width: 100%;
-              height: 100%;
-            }
-            canvas {
-              display: block;
-            }
-            #commandForm {
-              position: fixed;
-              bottom: 20px;
-              left: 50%;
-              transform: translateX(-50%);
-              z-index: 10;
-            }
-            #commandForm input {
-              padding: 10px;
-              line-height: 1;
-              font-size: 12px;
-              width: 300px;
-              border: 0;
-              color: #000;
-              background: #fff;
-            }
-            #forearmViewContainer {
-              position: fixed;
-              top: 10px;
-              right: 10px;
-              z-index: 20;
-              width: 210px;
-              height: 119px;
-              box-sizing: border-box;
-              border: 1px solid #fff;
-              background: #000;
-            }
-            #instructions {
-              position: absolute;
-              top: 20px;
-              left: 20px;
-              z-index: 10;
-              color: #fff;
-              font-family: Arial, sans-serif;
-              line-height: 1.5;
-              font-size: 12px;
-            }
-            #instructions ul {
-              margin: 0;
-            }
-            #instructions li {
-              margin-bottom: 5px;
-            }
-          `}</style>
+          body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+          }
+          canvas {
+            display: block;
+          }
+          #commandForm {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+          }
+          #commandForm input {
+            padding: 10px;
+            line-height: 1;
+            font-size: 12px;
+            width: 300px;
+            border: 0;
+            color: #000;
+            background: #fff;
+          }
+          #instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            line-height: 1.5;
+            font-size: 12px;
+          }
+          #instructions ul {
+            margin: 0;
+          }
+          #instructions li {
+            margin-bottom: 5px;
+          }
+        `}</style>
       </Head>
       {(!scene || !forearmCamera) && (
-        <div style={{ position: "absolute", top: 0, left: 0, width: "100vw", height: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, color: "#fff", fontSize: "24px" }}>
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "#000",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          color: "#fff",
+          fontSize: "24px"
+        }}>
           Loading...
         </div>
       )}
@@ -529,8 +565,43 @@ const Home: NextPage = () => {
           </Physics>
         </Canvas>
       )}
-      <div id="forearmViewContainer">
-        {scene && forearmCamera && <ForearmView scene={scene} robotCamera={forearmCamera} />}
+      <div
+        id="forearmViewContainer"
+        style={{
+          position: "fixed",
+          top: "10px",
+          right: "10px",
+          zIndex: 20,
+          width: `${viewWidth}px`,
+          height: `${viewHeight}px`,
+          boxSizing: "border-box",
+          border: "1px solid #fff",
+          background: "#000",
+          overflow: "hidden"
+        }}
+      >
+        <button
+          onClick={() => setForearmScale(forearmScale === 0.5 ? 1 : 0.5)}
+          style={{
+            position: "absolute",
+            top: "5px",
+            right: "5px",
+            zIndex: 30,
+            padding: "2px 5px",
+            fontSize: "12px",
+            cursor: "pointer"
+          }}
+        >
+          {forearmScale === 0.5 ? "2x" : "1x"}
+        </button>
+        {scene && forearmCamera && (
+          <ForearmView
+            scene={scene}
+            robotCamera={forearmCamera}
+            width={viewWidth}
+            height={viewHeight}
+          />
+        )}
       </div>
       <div id="commandForm">
         <form onSubmit={handleCommandSubmit}>

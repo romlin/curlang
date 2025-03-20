@@ -830,6 +830,8 @@ def create_temp_sh(
 
                 "$VENV_PYTHON" -u "$SCRIPT_DIR/python_executor.py" < "$SCRIPT_DIR/python_stdin" > "$SCRIPT_DIR/python_stdout" 2>&1 &
                 PYTHON_EXECUTOR_PID=$!
+                
+                disown $PYTHON_EXECUTOR_PID
 
                 exec 3> "$SCRIPT_DIR/python_stdin"
                 exec 4< "$SCRIPT_DIR/python_stdout"
